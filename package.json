@@ -1,6 +1,6 @@
 {
   "name": "dmc-saas-admin",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "type": "module",
   "description": "DMC 扫码系统 SaaS 后管 web — React + TypeScript + Tailwind + Vite",
@@ -14,6 +14,7 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
+    "@dmc/contracts": "git+https://github.com/xwLyc/dmc-saas-contracts.git#v0.1.2",
     "lucide-react": "^0.452.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
