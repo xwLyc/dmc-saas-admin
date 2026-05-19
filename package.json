@@ -1,40 +1,29 @@
 {
   "name": "dmc-saas-admin",
-  "version": "0.0.3",
+  "version": "0.0.5",
   "private": true,
-  "type": "module",
-  "description": "DMC 扫码系统 SaaS 后管 web — React + TypeScript + Tailwind + Vite",
+  "description": "DMC SaaS 后管 web — umi 4 + ant-design-pro",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "lint": "eslint . --ext .ts,.tsx",
-    "lint:fix": "eslint . --ext .ts,.tsx --fix",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
-    "typecheck": "tsc -b --noEmit"
+    "dev": "PORT=5174 max dev",
+    "build": "max build",
+    "format": "prettier --cache --write \"src/**/*.{ts,tsx,less,css}\"",
+    "postinstall": "max setup",
+    "setup": "max setup",
+    "start": "max dev"
   },
   "dependencies": {
-    "@dmc/contracts": "git+https://github.com/xwLyc/dmc-saas-contracts.git#v0.4.0",
-    "lucide-react": "^0.452.0",
+    "@dmc/contracts": "git+https://github.com/xwLyc/dmc-saas-contracts.git#v0.5.0",
+    "@ant-design/icons": "^5.5.1",
+    "@ant-design/pro-components": "^2.8.6",
+    "@umijs/max": "^4.4.0",
+    "antd": "^5.22.2",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^6.27.0",
-    "zustand": "^5.0.0"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@typescript-eslint/eslint-plugin": "^7.18.0",
-    "@typescript-eslint/parser": "^7.18.0",
-    "@vitejs/plugin-react": "^4.3.3",
-    "autoprefixer": "^10.4.20",
-    "eslint": "^8.57.0",
-    "eslint-plugin-react-hooks": "^4.6.2",
-    "eslint-plugin-react-refresh": "^0.4.14",
-    "postcss": "^8.4.47",
     "prettier": "^3.3.3",
-    "tailwindcss": "^3.4.14",
-    "typescript": "^5.6.0",
-    "vite": "^5.4.10"
+    "typescript": "^5.6.0"
   }
 }

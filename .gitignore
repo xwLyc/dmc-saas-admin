@@ -10,3 +10,9 @@ dist-ssr/
 .vscode/
 *.tsbuildinfo
 coverage/
+
+# umi 4 / @umijs/max 生成
+src/.umi/
+src/.umi-test/
+src/.umi-production/
+.umirc.local.ts

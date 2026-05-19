@@ -1,26 +1,20 @@
 /**
- * Token 存取 —— admin access + refresh token。
- * MVP 用 localStorage，未来如果分 admin / staff 多账户再加 key prefix。
+ * Admin token 存取 —— localStorage,跟原版一致(便于 swap 实现)。
  */
 
 const ACCESS_KEY = 'dmc.admin.access_token'
 const REFRESH_KEY = 'dmc.admin.refresh_token'
 
-export interface TokenPair {
-  accessToken: string
-  refreshToken: string
-}
-
-export function saveTokens(t: TokenPair): void {
+export function saveTokens(t: { accessToken: string; refreshToken: string }): void {
   try {
     localStorage.setItem(ACCESS_KEY, t.accessToken)
     localStorage.setItem(REFRESH_KEY, t.refreshToken)
   } catch {
-    /* localStorage 不可用,极端情况静默 */
+    /* ignore */
   }
 }
 
-export function getAccessToken(): string | null {
+export function getToken(): string | null {
   try {
     return localStorage.getItem(ACCESS_KEY)
   } catch {
@@ -41,10 +35,6 @@ export function clearTokens(): void {
     localStorage.removeItem(ACCESS_KEY)
     localStorage.removeItem(REFRESH_KEY)
   } catch {
-    /* 同上 */
+    /* ignore */
   }
-}
-
-export function hasTokens(): boolean {
-  return getAccessToken() !== null
 }
