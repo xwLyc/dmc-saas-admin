@@ -74,5 +74,11 @@ export default defineConfig({
       name: '工厂详情',
       hideInMenu: true,
     },
+    {
+      path: '/audit-logs',
+      component: '@/pages/AuditLogs',
+      name: '操作记录',
+      icon: 'FileTextOutlined',
+    },
   ],
 })

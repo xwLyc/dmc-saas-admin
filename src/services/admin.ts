@@ -6,6 +6,8 @@
 import { request } from '@umijs/max'
 import type {
   AdminCreateTenantRequest,
+  AdminListAuditLogsQuery,
+  AdminListAuditLogsResponse,
   AdminListTenantsQuery,
   AdminListTenantsResponse,
   AdminLoginRequest,
@@ -98,5 +100,16 @@ export async function createTenant(
     method: 'POST',
     data: body,
     skipErrorHandler: true,
+  })
+}
+
+// ───── audit logs ─────
+
+export async function listAuditLogs(
+  params: AdminListAuditLogsQuery,
+): Promise<AdminListAuditLogsResponse> {
+  return request<AdminListAuditLogsResponse>('/admin/audit-logs', {
+    method: 'GET',
+    params,
   })
 }
