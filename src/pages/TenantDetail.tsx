@@ -138,16 +138,6 @@ export default function TenantDetailPage() {
             render: (v) => (v ? (v as string) : '—'),
           },
           {
-            title: '营业执照',
-            dataIndex: 'licenseNo',
-            render: (v) => (v ? (v as string) : '—'),
-          },
-          {
-            title: '开票邮箱',
-            dataIndex: 'invoiceEmail',
-            render: (v) => (v ? (v as string) : '—'),
-          },
-          {
             title: '推荐码(自己的)',
             dataIndex: 'referralCode',
             copyable: true,
