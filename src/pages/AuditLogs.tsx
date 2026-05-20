@@ -20,6 +20,7 @@ import type {
 import { listAuditLogs } from '@/services/admin'
 
 const ACTION_META: Record<AuditAction, { text: string; color: string }> = {
+  'admin.login': { text: 'admin 登录', color: 'default' },
   'tenant.create': { text: '新建工厂', color: 'green' },
   'tenant.status_change': { text: '改工厂状态', color: 'blue' },
 }
@@ -86,6 +87,7 @@ const columns: ProColumns<AdminAuditLog>[] = [
     width: 110,
     valueType: 'select',
     valueEnum: {
+      'admin.login': { text: 'admin 登录' },
       'tenant.create': { text: '新建工厂' },
       'tenant.status_change': { text: '改工厂状态' },
     },
