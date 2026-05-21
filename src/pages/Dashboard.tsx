@@ -55,6 +55,16 @@ const KPI_TONE: Record<ColorKey, { bg: string; ring: string; text: string }> = {
   slate:   { bg: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', ring: '#64748b', text: '#475569' },
 }
 
+// 统一 chart Card 样式(更软的圆角 + soft border)
+const chartCardStyle: React.CSSProperties = {
+  borderRadius: 14,
+  border: '1px solid #e5e7eb',
+}
+const chartCardStyles = {
+  header: { borderBottom: '1px solid #f3f4f6', fontWeight: 600 },
+  body: { padding: 16 },
+}
+
 function fmtMoney(yuan: number) {
   return '¥ ' + yuan.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
