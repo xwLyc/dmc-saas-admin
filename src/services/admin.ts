@@ -6,6 +6,7 @@
 import { request } from '@umijs/max'
 import type {
   AdminCreateTenantRequest,
+  AdminDashboardStats,
   AdminListAuditLogsQuery,
   AdminListAuditLogsResponse,
   AdminListTenantsQuery,
@@ -111,5 +112,13 @@ export async function listAuditLogs(
   return request<AdminListAuditLogsResponse>('/admin/audit-logs', {
     method: 'GET',
     params,
+  })
+}
+
+// ───── dashboard ─────
+
+export async function getDashboardStats(): Promise<AdminDashboardStats> {
+  return request<AdminDashboardStats>('/admin/dashboard/stats', {
+    method: 'GET',
   })
 }

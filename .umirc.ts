@@ -61,7 +61,13 @@ export default defineConfig({
 
   routes: [
     { path: '/login', layout: false, component: '@/pages/Login' },
-    { path: '/', redirect: '/tenants' },
+    { path: '/', redirect: '/dashboard' },
+    {
+      path: '/dashboard',
+      component: '@/pages/Dashboard',
+      name: '数据看板',
+      icon: 'DashboardOutlined',
+    },
     {
       path: '/tenants',
       component: '@/pages/Tenants',
