@@ -26,6 +26,7 @@ import {
 import type { AdminDashboardStats } from '@dmc/contracts'
 import { getDashboardStats } from '@/services/admin'
 import { getErrorMessage } from '@/lib/errorMsg'
+import RenewTenantModalButton from '@/components/RenewTenantModalButton'
 
 const COLORS = {
   primary: '#1677ff',
@@ -331,20 +332,21 @@ export default function DashboardPage() {
               return (
                 <div
                   key={t.id}
-                  onClick={() => history.push(`/tenants/${t.id}`)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '8px 12px',
                     borderRadius: 4,
-                    cursor: 'pointer',
                     transition: 'background 0.15s',
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.background = '#f5f5f5' }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = '' }}
                 >
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
+                    onClick={() => history.push(`/tenants/${t.id}`)}
+                  >
                     <span style={{ fontWeight: 500 }}>{t.name}</span>
                     <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
                       {t.contactName} · {t.contactPhone}
@@ -359,7 +361,24 @@ export default function DashboardPage() {
                     <Typography.Text type="secondary" style={{ fontSize: 11 }}>
                       {new Date(t.expiresAt).toLocaleDateString('zh-CN')}
                     </Typography.Text>
-                    <ArrowRightOutlined style={{ color: '#bfbfbf' }} />
+                    <RenewTenantModalButton
+                      tenantId={t.id}
+                      tenantName={t.name}
+                      currentExpiresAt={t.expiresAt}
+                      triggerText="续期"
+                      triggerProps={{ size: 'small' }}
+                      onSuccess={() => {
+                        // 续期成功后从清单移除(本地优化,避免整页 refetch)
+                        setStats((prev) => prev && ({
+                          ...prev,
+                          expiringList: prev.expiringList.filter((x) => x.id !== t.id),
+                        }))
+                      }}
+                    />
+                    <ArrowRightOutlined
+                      style={{ color: '#bfbfbf', cursor: 'pointer' }}
+                      onClick={() => history.push(`/tenants/${t.id}`)}
+                    />
                   </div>
                 </div>
               )

@@ -26,6 +26,7 @@ import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { AdminTenantDetail, TenantStatus } from '@dmc/contracts'
 import { getTenantDetail, updateTenantStatus } from '@/services/admin'
 import { getErrorMessage } from '@/lib/errorMsg'
+import RenewTenantModalButton from '@/components/RenewTenantModalButton'
 
 const STATUS_META: Record<TenantStatus, { text: string; color: string }> = {
   trial: { text: '试用中', color: 'blue' },
@@ -111,6 +112,13 @@ export default function TenantDetailPage() {
           <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
             刷新
           </Button>
+          <RenewTenantModalButton
+            tenantId={detail.id}
+            tenantName={detail.name}
+            currentExpiresAt={detail.expiresAt}
+            triggerProps={{ disabled: detail.status === 'disabled' }}
+            onSuccess={(updated) => setDetail(updated)}
+          />
           <StatusActions
             status={detail.status}
             updating={updating}

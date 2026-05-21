@@ -7,6 +7,7 @@ import { request } from '@umijs/max'
 import type {
   AdminCreateTenantRequest,
   AdminDashboardStats,
+  AdminRenewTenantRequest,
   AdminListAuditLogsQuery,
   AdminListAuditLogsResponse,
   AdminListTenantsQuery,
@@ -102,6 +103,21 @@ export async function createTenant(
     data: body,
     skipErrorHandler: true,
   })
+}
+
+/** admin 手动给工厂续期(复用 backend subscribe;写 admin audit log) */
+export async function renewTenant(
+  id: string,
+  body: AdminRenewTenantRequest,
+): Promise<AdminTenantDetail> {
+  return request<AdminTenantDetail>(
+    `/admin/tenants/${encodeURIComponent(id)}/renew`,
+    {
+      method: 'POST',
+      data: body,
+      skipErrorHandler: true,
+    },
+  )
 }
 
 // ───── audit logs ─────
