@@ -343,11 +343,13 @@ export default function DashboardPage() {
                   onMouseEnter={(e) => { e.currentTarget.style.background = '#f5f5f5' }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = '' }}
                 >
-                  <div
-                    style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
-                    onClick={() => history.push(`/tenants/${t.id}`)}
-                  >
-                    <span style={{ fontWeight: 500 }}>{t.name}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Typography.Link
+                      onClick={() => history.push(`/tenants/${t.id}`)}
+                      style={{ fontWeight: 500 }}
+                    >
+                      {t.name}
+                    </Typography.Link>
                     <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
                       {t.contactName} · {t.contactPhone}
                     </Typography.Text>
