@@ -14,7 +14,7 @@
 import { useState, useMemo, useRef } from 'react'
 import {
   Card, Button, Upload, Steps, Input, Empty, Table, Tag, Space, Spin, Alert,
-  Typography, Divider, message, InputNumber,
+  Typography, Divider, message, InputNumber, Collapse,
 } from 'antd'
 import type { UploadProps } from 'antd'
 import {
@@ -144,6 +144,7 @@ export default function DmcBatchesPage() {
         {phase === 'configure' && analysis?.passed && parsed && (
           <ConfigureView
             parsed={parsed}
+            analysis={analysis}
             assigned={assigned}
             startSeq={startSeq}
             setStartSeq={setStartSeq}
@@ -365,9 +366,10 @@ function AnomalyTable({ anomalies }: { anomalies: AnalysisAnomaly[] }) {
 // ─── 配置阶段:序号输入 + 预览 + 导出 ───
 
 function ConfigureView({
-  parsed, assigned, startSeq, setStartSeq, previewCount, setPreviewCount, onExport,
+  parsed, analysis, assigned, startSeq, setStartSeq, previewCount, setPreviewCount, onExport,
 }: {
   parsed: ParsedDmcFile
+  analysis: AnalysisResult
   assigned: Array<{ seq: string; dmc: string }>
   startSeq: string
   setStartSeq: (v: string) => void
@@ -389,6 +391,34 @@ function ConfigureView({
         showIcon
         message={`文件 ${parsed.filename} 校验通过,共 ${total} 条 DMC 码`}
         style={{ marginBottom: 16 }}
+      />
+
+      {/* 校验详情(可折叠,默认展开;admin 能回看每步做了什么) */}
+      <Collapse
+        size="small"
+        defaultActiveKey={['steps']}
+        style={{ marginBottom: 16 }}
+        items={[{
+          key: 'steps',
+          label: (
+            <span style={{ fontSize: 13 }}>
+              <CheckCircleOutlined style={{ color: '#52c41a', marginRight: 6 }} />
+              校验详情(3 步全部通过)
+            </span>
+          ),
+          children: (
+            <Space direction="vertical" style={{ width: '100%' }} size={8}>
+              {STAGE_ORDER.map((stage) => (
+                <StepRow
+                  key={stage}
+                  stage={stage}
+                  state={analysis.steps[stage]}
+                  totalCodes={parsed.total}
+                />
+              ))}
+            </Space>
+          ),
+        }]}
       />
 
       <Card size="small" title="序号配置" style={{ marginBottom: 16 }}>
