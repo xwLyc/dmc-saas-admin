@@ -75,6 +75,12 @@ export default defineConfig({
       icon: 'ShopOutlined',
     },
     {
+      path: '/dmc-batches',
+      component: '@/pages/DmcBatches',
+      name: 'DMC 序号生成',
+      icon: 'BarcodeOutlined',
+    },
+    {
       path: '/tenants/:id',
       component: '@/pages/TenantDetail',
       name: '工厂详情',

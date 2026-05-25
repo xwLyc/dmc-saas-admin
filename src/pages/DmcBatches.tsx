@@ -1,0 +1,424 @@
+/**
+ * DMC 序号生成工具(纯前端,不持久化)
+ *
+ * 流程:
+ *   Step 1. 上传客户给的 DMC 文件(csv/xlsx,单列纯码)
+ *   Step 2. 校验(3 步:文件内重复 / 长度一致 / GS1 格式)— 复用桌面端逻辑
+ *   Step 3. 输入起始序号 + 预览 — 复用桌面端 nextSeq
+ *   Step 4. 导出 csv 或 xlsx(两列:序号 | DMC码)给标签厂 + 工厂
+ *
+ * Phase 1 MVP:不持久化,所有数据浏览器内存里。
+ * 后续 Phase 2 会加 backend 持久化(批次表 + 分发记录 + 工厂校验)。
+ */
+
+import { useState, useMemo, useRef } from 'react'
+import {
+  Card, Button, Upload, Steps, Input, Empty, Table, Tag, Space, Spin, Alert,
+  Typography, Divider, message, InputNumber,
+} from 'antd'
+import type { UploadProps } from 'antd'
+import {
+  CloudUploadOutlined, CheckCircleOutlined, CloseCircleOutlined,
+  LoadingOutlined, DownloadOutlined, ReloadOutlined,
+} from '@ant-design/icons'
+import { parseDmcFile, exportSeqDmc, type ParsedDmcFile } from '@/lib/dmc/parseFile'
+import { analyzeDmcCodes } from '@/lib/dmc/validate'
+import { assignSeqs, nextSeq } from '@/lib/dmc/sequence'
+import {
+  type AnalysisResult, type AnalysisStage, type AnalysisStepState, type AnalysisAnomaly,
+  STAGE_LABELS, STAGE_ORDER,
+} from '@/lib/dmc/types'
+
+type Phase = 'upload' | 'analyzing' | 'failed' | 'configure'
+
+export default function DmcBatchesPage() {
+  const [phase, setPhase] = useState<Phase>('upload')
+  const [parsed, setParsed] = useState<ParsedDmcFile | null>(null)
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null)
+  const [startSeq, setStartSeq] = useState('ADU000001')
+  const [previewCount, setPreviewCount] = useState(10)
+  const fileInputResetKey = useRef(0)
+
+  // ─── 上传 + 解析 + 校验 ───
+  const handleFile = async (file: File) => {
+    try {
+      setPhase('analyzing')
+      // 解析文件
+      const p = await parseDmcFile(file)
+      setParsed(p)
+
+      // 校验(同步,几千行内毫秒级,UI 不卡;复用 desktop 3-step)
+      const result = analyzeDmcCodes(p.codes.map((code) => ({ code })))
+      setAnalysis(result)
+      setPhase(result.passed ? 'configure' : 'failed')
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '文件解析失败')
+      setPhase('upload')
+    }
+  }
+
+  const handleReset = () => {
+    setPhase('upload')
+    setParsed(null)
+    setAnalysis(null)
+    setStartSeq('ADU000001')
+    fileInputResetKey.current += 1
+  }
+
+  // ─── 配置阶段:序号预览 ───
+  const assigned = useMemo(() => {
+    if (!analysis?.passed || !analysis.uniqueCodes.length) return []
+    return assignSeqs(analysis.uniqueCodes, startSeq)
+  }, [analysis, startSeq])
+
+  const handleExport = (format: 'csv' | 'xlsx') => {
+    if (assigned.length === 0) return
+    const baseName = parsed?.filename
+      ? parsed.filename.replace(/\.(csv|xlsx|xls)$/i, '') + '_带序号'
+      : 'dmc_带序号'
+    exportSeqDmc(assigned, baseName, format)
+    message.success(`已导出 ${assigned.length} 条 ${format.toUpperCase()}`)
+  }
+
+  // ─── 上传 props ───
+  const uploadProps: UploadProps = {
+    accept: '.csv,.xlsx,.xls',
+    showUploadList: false,
+    beforeUpload: (file) => {
+      handleFile(file)
+      return false // 不让 antd 真上传(我们本地处理)
+    },
+  }
+
+  return (
+    <div>
+      <Card
+        title={
+          <span>
+            DMC 序号生成工具
+            <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 12 }}>
+              客户给的纯 DMC 配序号 → 同一份带序号表格分发给标签厂 + 工厂,保证三方对齐
+            </Typography.Text>
+          </span>
+        }
+        extra={phase !== 'upload' && (
+          <Button icon={<ReloadOutlined />} onClick={handleReset}>
+            重新开始
+          </Button>
+        )}
+        styles={{ body: { padding: 24 } }}
+      >
+        <Steps
+          current={phase === 'upload' ? 0 : phase === 'analyzing' || phase === 'failed' ? 1 : 2}
+          items={[
+            { title: '上传 DMC 文件' },
+            { title: '校验' },
+            { title: '配置序号 + 导出' },
+          ]}
+          style={{ marginBottom: 32 }}
+        />
+
+        {/* Phase 1: 上传 */}
+        {phase === 'upload' && (
+          <Upload.Dragger {...uploadProps} key={fileInputResetKey.current}>
+            <p className="ant-upload-drag-icon">
+              <CloudUploadOutlined style={{ color: '#6366f1' }} />
+            </p>
+            <p className="ant-upload-text">点击或拖拽文件到这里上传</p>
+            <p className="ant-upload-hint">
+              支持 CSV / XLSX / XLS。文件应包含一列 DMC 码(列名可以是 "DMC" / "DMC码" / "code" 或纯无表头)。
+            </p>
+          </Upload.Dragger>
+        )}
+
+        {/* Phase 2: 校验中 / 校验失败 */}
+        {(phase === 'analyzing' || phase === 'failed') && analysis && parsed && (
+          <AnalysisView
+            parsed={parsed}
+            analysis={analysis}
+            onRetry={handleReset}
+          />
+        )}
+
+        {/* Phase 3: 配置序号 + 预览 + 导出 */}
+        {phase === 'configure' && analysis?.passed && parsed && (
+          <ConfigureView
+            parsed={parsed}
+            assigned={assigned}
+            startSeq={startSeq}
+            setStartSeq={setStartSeq}
+            previewCount={previewCount}
+            setPreviewCount={setPreviewCount}
+            onExport={handleExport}
+          />
+        )}
+      </Card>
+    </div>
+  )
+}
+
+// ─── 校验结果展示(进度链表 + 异常表)───
+
+function AnalysisView({
+  parsed, analysis, onRetry,
+}: {
+  parsed: ParsedDmcFile
+  analysis: AnalysisResult
+  onRetry: () => void
+}) {
+  const failed = !analysis.passed
+
+  return (
+    <div>
+      {failed ? (
+        <Alert
+          type="error"
+          showIcon
+          message={`校验未通过(${STAGE_LABELS[analysis.failedStage!]})`}
+          description={`文件 ${parsed.filename} 共 ${parsed.total} 行,在 "${STAGE_LABELS[analysis.failedStage!]}" 阶段发现异常,请修复后重新上传。`}
+          style={{ marginBottom: 16 }}
+        />
+      ) : (
+        <Alert
+          type="success"
+          showIcon
+          message="3 步校验全部通过"
+          description={`共 ${parsed.total} 条 DMC 码可用于生成序号。`}
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
+      {/* 进度链表 */}
+      <Card size="small" style={{ marginBottom: 16 }} title="校验进度">
+        <Space direction="vertical" style={{ width: '100%' }} size="small">
+          {STAGE_ORDER.map((stage) => {
+            const s = analysis.steps[stage]
+            return <StepRow key={stage} stage={stage} state={s} />
+          })}
+        </Space>
+      </Card>
+
+      {/* 异常表(失败时才有) */}
+      {failed && analysis.steps[analysis.failedStage!]?.anomalies && (
+        <Card
+          size="small"
+          title={
+            <span>
+              异常详情(共 {analysis.steps[analysis.failedStage!].anomalies!.length} 条)
+            </span>
+          }
+        >
+          <AnomalyTable
+            anomalies={analysis.steps[analysis.failedStage!].anomalies!}
+          />
+          <div style={{ marginTop: 16, textAlign: 'center' }}>
+            <Button type="primary" onClick={onRetry}>
+              重新上传文件
+            </Button>
+          </div>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+function StepRow({ stage, state }: { stage: AnalysisStage; state: AnalysisStepState }) {
+  let icon, color, text
+  if (state.status === 'pending') {
+    icon = <span style={{ color: '#d9d9d9' }}>○</span>
+    color = '#999'
+    text = '等待'
+  } else if (state.status === 'running') {
+    icon = <LoadingOutlined style={{ color: '#1677ff' }} spin />
+    color = '#1677ff'
+    text = '进行中'
+  } else if (state.status === 'passed') {
+    icon = <CheckCircleOutlined style={{ color: '#52c41a' }} />
+    color = '#52c41a'
+    text = '通过'
+  } else {
+    icon = <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+    color = '#ff4d4f'
+    text = `失败 (${state.anomalies?.length ?? 0} 条异常)`
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+      <span style={{ fontSize: 16, width: 20, textAlign: 'center' }}>{icon}</span>
+      <span style={{ flex: 1, color: state.status === 'failed' ? '#ff4d4f' : undefined }}>
+        {STAGE_LABELS[stage]}
+      </span>
+      <span style={{ color }}>{text}</span>
+      {state.stats?.baselineLength && (
+        <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+          基准长度 {state.stats.baselineLength}
+        </Typography.Text>
+      )}
+      {state.stats?.uniqueCount !== undefined && (
+        <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+          独立 {state.stats.uniqueCount} 条
+        </Typography.Text>
+      )}
+    </div>
+  )
+}
+
+function AnomalyTable({ anomalies }: { anomalies: AnalysisAnomaly[] }) {
+  return (
+    <Table
+      dataSource={anomalies}
+      rowKey="rowIndex"
+      pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: [20, 50, 100] }}
+      size="small"
+      scroll={{ y: 400 }}
+      columns={[
+        {
+          title: '行号',
+          dataIndex: 'rowIndex',
+          width: 70,
+          render: (v: number) => v + 1,  // 0-based → 1-based
+        },
+        {
+          title: '类型',
+          dataIndex: 'kind',
+          width: 130,
+          render: (k: AnalysisAnomaly['kind']) => {
+            const map: Record<typeof k, { text: string; color: string }> = {
+              file_duplicate: { text: '文件内重复', color: 'orange' },
+              length_mismatch: { text: '长度不符', color: 'orange' },
+              format_invalid: { text: 'GS1 格式错', color: 'red' },
+            }
+            const m = map[k]
+            return <Tag color={m.color}>{m.text}</Tag>
+          },
+        },
+        {
+          title: '原因',
+          dataIndex: 'reasonText',
+          width: 280,
+        },
+        {
+          title: 'DMC',
+          dataIndex: 'code',
+          ellipsis: true,
+          render: (c: string) => (
+            <Typography.Text code copyable={{ text: c }} style={{ fontSize: 11 }}>
+              {c.length > 60 ? c.slice(0, 60) + '...' : c}
+            </Typography.Text>
+          ),
+        },
+      ]}
+    />
+  )
+}
+
+// ─── 配置阶段:序号输入 + 预览 + 导出 ───
+
+function ConfigureView({
+  parsed, assigned, startSeq, setStartSeq, previewCount, setPreviewCount, onExport,
+}: {
+  parsed: ParsedDmcFile
+  assigned: Array<{ seq: string; dmc: string }>
+  startSeq: string
+  setStartSeq: (v: string) => void
+  previewCount: number
+  setPreviewCount: (v: number) => void
+  onExport: (format: 'csv' | 'xlsx') => void
+}) {
+  const total = assigned.length
+  const lastSeq = total > 0 ? assigned[total - 1].seq : ''
+  const previewSlice = useMemo(
+    () => assigned.slice(0, Math.min(previewCount, total)),
+    [assigned, previewCount, total],
+  )
+
+  return (
+    <>
+      <Alert
+        type="success"
+        showIcon
+        message={`文件 ${parsed.filename} 校验通过,共 ${total} 条 DMC 码`}
+        style={{ marginBottom: 16 }}
+      />
+
+      <Card size="small" title="序号配置" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>起始序号</div>
+            <Input
+              value={startSeq}
+              onChange={(e) => setStartSeq(e.target.value)}
+              placeholder="ADU000001"
+              style={{ width: 220 }}
+            />
+            <Typography.Text type="secondary" style={{ display: 'block', fontSize: 11, marginTop: 4 }}>
+              自动识别"前缀 + 末尾数字"两段,递增补零
+            </Typography.Text>
+          </div>
+          <Divider type="vertical" style={{ height: 50 }} />
+          <div>
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>第一条序号</div>
+            <Typography.Text code style={{ fontSize: 14 }}>
+              {assigned[0]?.seq ?? '—'}
+            </Typography.Text>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>最后一条序号</div>
+            <Typography.Text code style={{ fontSize: 14 }}>
+              {lastSeq || '—'}
+            </Typography.Text>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>预览前 N 条</div>
+            <InputNumber min={5} max={500} value={previewCount} onChange={(v) => setPreviewCount(v ?? 10)} style={{ width: 100 }} />
+          </div>
+        </div>
+      </Card>
+
+      <Card
+        size="small"
+        title={`预览(显示前 ${previewSlice.length} 条,共 ${total} 条)`}
+        extra={
+          <Space>
+            <Button icon={<DownloadOutlined />} onClick={() => onExport('csv')}>
+              导出 CSV
+            </Button>
+            <Button type="primary" icon={<DownloadOutlined />} onClick={() => onExport('xlsx')}>
+              导出 XLSX
+            </Button>
+          </Space>
+        }
+      >
+        <Table
+          dataSource={previewSlice}
+          rowKey="seq"
+          pagination={false}
+          size="small"
+          columns={[
+            {
+              title: '#',
+              width: 60,
+              render: (_v, _r, idx) => idx + 1,
+            },
+            {
+              title: '序号',
+              dataIndex: 'seq',
+              width: 220,
+              render: (s: string) => <Typography.Text code style={{ fontSize: 13 }}>{s}</Typography.Text>,
+            },
+            {
+              title: 'DMC 码',
+              dataIndex: 'dmc',
+              ellipsis: true,
+              render: (c: string) => (
+                <Typography.Text code style={{ fontSize: 11 }}>
+                  {c.length > 80 ? c.slice(0, 80) + '...' : c}
+                </Typography.Text>
+              ),
+            },
+          ]}
+        />
+      </Card>
+    </>
+  )
+}
