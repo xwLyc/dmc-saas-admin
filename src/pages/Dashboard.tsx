@@ -8,7 +8,7 @@
  * 数据来自一个 endpoint: GET /admin/dashboard/stats (services/admin.getDashboardStats)
  */
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { history } from '@umijs/max'
 import {
   Card, Row, Col, Spin, Empty, Tag, Tooltip, message,
@@ -27,33 +27,7 @@ import type { AdminDashboardStats } from '@dmc/contracts'
 import { getDashboardStats } from '@/services/admin'
 import { getErrorMessage } from '@/lib/errorMsg'
 import RenewTenantModalButton from '@/components/RenewTenantModalButton'
-
-// 现代 SaaS 看板色板(Tailwind 风格,比 antd 默认更柔和)
-const COLORS = {
-  primary: '#6366f1',   // indigo
-  success: '#10b981',   // emerald
-  warning: '#f59e0b',   // amber
-  danger:  '#ef4444',   // red
-  purple:  '#8b5cf6',   // violet
-  cyan:    '#06b6d4',   // cyan
-  pink:    '#ec4899',   // pink
-  gold:    '#eab308',   // yellow-500
-  slate:   '#64748b',   // slate-500
-}
-
-// KPI 卡片每张的色调(语义分组:中性蓝/正向绿/潜力紫/警告橙/危险红/...)
-type ColorKey = keyof typeof COLORS
-const KPI_TONE: Record<ColorKey, { bg: string; ring: string; text: string }> = {
-  primary: { bg: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)', ring: '#6366f1', text: '#4338ca' },
-  success: { bg: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)', ring: '#10b981', text: '#047857' },
-  warning: { bg: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)', ring: '#f59e0b', text: '#b45309' },
-  danger:  { bg: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)', ring: '#ef4444', text: '#b91c1c' },
-  purple:  { bg: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)', ring: '#8b5cf6', text: '#6d28d9' },
-  cyan:    { bg: 'linear-gradient(135deg, #ecfeff 0%, #cffafe 100%)', ring: '#06b6d4', text: '#0e7490' },
-  pink:    { bg: 'linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%)', ring: '#ec4899', text: '#be185d' },
-  gold:    { bg: 'linear-gradient(135deg, #fefce8 0%, #fef08a 100%)', ring: '#eab308', text: '#a16207' },
-  slate:   { bg: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', ring: '#64748b', text: '#475569' },
-}
+import { KpiCard, COLORS } from '@/components/KpiCard'
 
 // 统一 chart Card 样式(更软的圆角 + soft border)
 const chartCardStyle: React.CSSProperties = {
@@ -371,81 +345,7 @@ export default function DashboardPage() {
   )
 }
 
-// ─── KPI 卡片(现代 SaaS 风格)───
-// 渐变背景 + 彩色 icon 圆角块 + 大字数字 + 浅色 label + hover lift。
-
-interface KpiCardProps {
-  tone: ColorKey
-  icon: ReactNode
-  label: string
-  value: number
-  /** 'plain' = 普通整数 | 'money' = ¥ 千分位 2 位 */
-  fmt?: 'plain' | 'money'
-  /** 0 时也用主色调(true 时强调,非 0 数字才高亮) */
-  highlight?: boolean
-  suffix?: string
-}
-
-function KpiCard({ tone, icon, label, value, fmt = 'plain', highlight = false, suffix }: KpiCardProps) {
-  const t = KPI_TONE[tone]
-  // highlight 模式下,value=0 退化为浅灰色(避免无意义高亮)
-  const showColor = !highlight || value > 0
-  return (
-    <div
-      style={{
-        background: showColor ? t.bg : 'linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%)',
-        border: `1px solid ${showColor ? t.ring + '20' : '#e5e7eb'}`,
-        borderRadius: 14,
-        padding: '14px 16px',
-        transition: 'transform 0.2s, box-shadow 0.2s',
-        cursor: 'default',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)'
-        e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.06)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = ''
-        e.currentTarget.style.boxShadow = ''
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-        <div
-          style={{
-            width: 32, height: 32, borderRadius: 8,
-            background: showColor ? t.ring : '#9ca3af',
-            color: '#fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16,
-            boxShadow: showColor ? `0 2px 8px ${t.ring}40` : 'none',
-          }}
-        >
-          {icon}
-        </div>
-        <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500 }}>{label}</span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-        <span
-          style={{
-            fontSize: 26,
-            fontWeight: 700,
-            color: showColor ? t.text : '#374151',
-            letterSpacing: '-0.5px',
-            lineHeight: 1.1,
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {fmt === 'money'
-            ? '¥' + value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-            : value.toLocaleString('zh-CN')}
-        </span>
-        {suffix && (
-          <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>{suffix}</span>
-        )}
-      </div>
-    </div>
-  )
-}
+// KpiCard / KPI_TONE / ColorKey 已抽到 @/components/KpiCard,供 Subscriptions 等页面共用
 
 // ─── 转化漏斗单条 step ───
 

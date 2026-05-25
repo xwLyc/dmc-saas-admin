@@ -12,7 +12,8 @@
 
 import { useEffect, useState } from 'react'
 import { history, useParams } from '@umijs/max'
-import { ProDescriptions } from '@ant-design/pro-components'
+import { ProDescriptions, ProTable } from '@ant-design/pro-components'
+import type { ProColumns } from '@ant-design/pro-components'
 import {
   Button,
   Card,
@@ -21,10 +22,18 @@ import {
   Skeleton,
   Space,
   Tag,
+  Typography,
 } from 'antd'
 import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons'
-import type { AdminTenantDetail, TenantStatus } from '@dmc/contracts'
-import { getTenantDetail, updateTenantStatus } from '@/services/admin'
+import type {
+  AdminSubscriptionRow,
+  AdminSubscriptionSource,
+  AdminTenantDetail,
+  PlanId,
+  TenantId,
+  TenantStatus,
+} from '@dmc/contracts'
+import { getTenantDetail, listSubscriptions, updateTenantStatus } from '@/services/admin'
 import { getErrorMessage } from '@/lib/errorMsg'
 import RenewTenantModalButton from '@/components/RenewTenantModalButton'
 
@@ -170,7 +179,88 @@ export default function TenantDetailPage() {
           { title: '更新时间', dataIndex: 'updatedAt', valueType: 'dateTime' },
         ]}
       />
+
+      {/* ─── 订阅历史子表(本工厂的所有订单) ─── */}
+      <div style={{ marginTop: 24 }}>
+        <SubscriptionHistory tenantId={detail.id} />
+      </div>
     </Card>
+  )
+}
+
+const PLAN_META: Record<PlanId, { text: string; color: string }> = {
+  monthly: { text: '月度', color: 'blue' },
+  yearly: { text: '年度', color: 'gold' },
+}
+
+const SOURCE_META: Record<AdminSubscriptionSource, { text: string; color: string }> = {
+  self: { text: '自助订阅', color: 'default' },
+  referred: { text: '被推荐', color: 'cyan' },
+}
+
+const SUB_COLUMNS: ProColumns<AdminSubscriptionRow>[] = [
+  {
+    title: '套餐',
+    dataIndex: 'plan',
+    width: 90,
+    render: (_, row) => {
+      const m = PLAN_META[row.plan]
+      return <Tag color={m.color}>{m.text}</Tag>
+    },
+  },
+  {
+    title: '金额',
+    dataIndex: 'priceYuan',
+    width: 100,
+    align: 'right',
+    render: (v) => (
+      <Typography.Text strong style={{ color: '#047857' }}>
+        ¥ {Number(v).toFixed(2)}
+      </Typography.Text>
+    ),
+  },
+  {
+    title: '来源',
+    dataIndex: 'source',
+    width: 100,
+    render: (_, row) => {
+      const m = SOURCE_META[row.source]
+      return <Tag color={m.color}>{m.text}</Tag>
+    },
+  },
+  {
+    title: '订阅时间',
+    dataIndex: 'createdAt',
+    valueType: 'dateTime',
+    width: 170,
+  },
+  {
+    title: '到期时间',
+    dataIndex: 'expiresAt',
+    valueType: 'dateTime',
+    width: 170,
+  },
+]
+
+/** 工厂详情页底部:本工厂订阅历史子表(只读,不带搜索栏) */
+function SubscriptionHistory({ tenantId }: { tenantId: TenantId }) {
+  return (
+    <ProTable<AdminSubscriptionRow>
+      headerTitle="订阅历史"
+      columns={SUB_COLUMNS}
+      rowKey="id"
+      search={false}
+      pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `共 ${total} 笔` }}
+      options={{ density: false, fullScreen: false, reload: true, setting: false }}
+      request={async (params) => {
+        const resp = await listSubscriptions({
+          tenantId,
+          page: params.current ?? 1,
+          pageSize: params.pageSize ?? 10,
+        })
+        return { data: resp.items, total: resp.total, success: true }
+      }}
+    />
   )
 }
 

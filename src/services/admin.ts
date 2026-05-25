@@ -7,6 +7,8 @@ import { request } from '@umijs/max'
 import type {
   AdminCreateTenantRequest,
   AdminDashboardStats,
+  AdminListSubscriptionsQuery,
+  AdminListSubscriptionsResponse,
   AdminRenewTenantRequest,
   AdminListAuditLogsQuery,
   AdminListAuditLogsResponse,
@@ -136,5 +138,17 @@ export async function listAuditLogs(
 export async function getDashboardStats(): Promise<AdminDashboardStats> {
   return request<AdminDashboardStats>('/admin/dashboard/stats', {
     method: 'GET',
+  })
+}
+
+// ───── subscriptions ─────
+
+/** 订阅订单列表(分页 + plan/source/from/to/search 筛选)*/
+export async function listSubscriptions(
+  params: AdminListSubscriptionsQuery,
+): Promise<AdminListSubscriptionsResponse> {
+  return request<AdminListSubscriptionsResponse>('/admin/subscriptions', {
+    method: 'GET',
+    params,
   })
 }
