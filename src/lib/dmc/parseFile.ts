@@ -1,66 +1,39 @@
 /**
- * DMC 文件解析 —— 支持 csv / xlsx。
+ * DMC 文件解析 + 导出 —— 复用桌面端 parseSourceFile 的逻辑。
  *
- * 容错:
- *   - 跳过空行
- *   - trim 后非空才视为码
- *   - 列名匹配优先级:'DMC' / 'DMC码' / 'dmc' / 'code' / 'raw';否则取第一列
- *   - BOM 自动去除(SheetJS 内置)
+ * 关键陷阱(从桌面端继承):
+ *   CSV: **不能走 SheetJS**!俄罗斯 KM serial 字符集 82 允许 `,`,SheetJS 会误切列。
+ *        改用 `file.text() + split('\n')` 按整行读。
+ *   XLSX: 双列形态识别(见 parseSourceFile pickCellFromRow 注释):
+ *        - 形态 1: 客户 ERP 双列(短码+全签名),取最长
+ *        - 形态 1.5: 某 cell 自身已是合法 KM,取最长合法
+ *        - 形态 2: xlsx-from-csv 切碎,用 `,` join 还原
+ *
+ * 导出 CSV 必须 quote 含 `,` 的字段:DMC 码本身可能含逗号,不 quote 工厂打开后会
+ * 看到错列。这里手写 CSV 转义而不是依赖 SheetJS bookType:'csv'(它不一定 quote 全).
  */
 
 import * as XLSX from 'xlsx'
-
-const DMC_COLUMN_KEYS = ['DMC', 'DMC码', 'dmc', 'code', '码', 'raw', 'rawImport']
+import { parseSourceFile } from './parseSourceFile'
+import { rawToGs1Segments } from './gs1Parse'
 
 export interface ParsedDmcFile {
-  /** 总行数(去空行后) */
   total: number
-  /** 提取的 DMC 码列表(顺序跟文件一致) */
   codes: string[]
-  /** 文件名(显示用) */
   filename: string
 }
 
 export async function parseDmcFile(file: File): Promise<ParsedDmcFile> {
-  const buf = await file.arrayBuffer()
-  // 不限定 csv/xlsx,SheetJS 自动识别
-  const wb = XLSX.read(buf, { type: 'array' })
-  const firstSheet = wb.Sheets[wb.SheetNames[0]]
-  if (!firstSheet) throw new Error('文件没有 sheet 或为空')
-
-  // 转 array of array(保留原始位置 + 列名行)
-  const rows: unknown[][] = XLSX.utils.sheet_to_json(firstSheet, {
-    header: 1,
-    raw: false,
-    defval: '',
+  const codes = await parseSourceFile(file, {
+    // 表头匹配:首行单格是这些关键字时跳过
+    headerPattern: /^(code|码|条码|DMC|DMC码|barcode|raw|rawImport)$/i,
+    // 多列形态 1.5 判别:这个 cell 自身是合法 GS1 → 优先
+    isValidKm: (s) => rawToGs1Segments(s) !== null,
   })
 
-  if (rows.length === 0) throw new Error('文件为空')
-
-  // 判断第一行是不是表头:看是否含已知 DMC 列名关键字
-  const firstRow = rows[0].map((c) => String(c ?? '').trim())
-  const headerColIdx = firstRow.findIndex((cell) => DMC_COLUMN_KEYS.includes(cell))
-  let dataRows: unknown[][]
-  let dmcColIdx: number
-
-  if (headerColIdx >= 0) {
-    // 有表头
-    dataRows = rows.slice(1)
-    dmcColIdx = headerColIdx
-  } else {
-    // 没表头,取第一列
-    dataRows = rows
-    dmcColIdx = 0
+  if (codes.length === 0) {
+    throw new Error('未解析到任何 DMC 码,请检查文件格式')
   }
-
-  const codes: string[] = []
-  for (const row of dataRows) {
-    const raw = String(row[dmcColIdx] ?? '').trim()
-    if (!raw) continue // 跳过空行
-    codes.push(raw)
-  }
-
-  if (codes.length === 0) throw new Error('文件没有有效的 DMC 码')
 
   return {
     total: codes.length,
@@ -71,33 +44,57 @@ export async function parseDmcFile(file: File): Promise<ParsedDmcFile> {
 
 /**
  * 导出 DMC + 序号到 csv 或 xlsx。
- *   - 两列:序号(seq) | DMC码(dmc)
+ *   - 两列:序号 | DMC码
+ *   - CSV 手写转义:任何含 `,` / `"` / 换行 的字段加双引号,内部 `"` 转 `""`
+ *     (RFC 4180,标签厂用 Excel 打开必能正确分列)
+ *   - XLSX 走 SheetJS aoa_to_sheet,无需手转义
  *   - 中文列名(工厂老板看得懂)
- *   - 自动下载
  */
 export function exportSeqDmc(
   rows: Array<{ seq: string; dmc: string }>,
   filename: string,
   format: 'csv' | 'xlsx',
 ): void {
-  const data = [
-    ['序号', 'DMC码'],
-    ...rows.map((r) => [r.seq, r.dmc]),
-  ]
-  const ws = XLSX.utils.aoa_to_sheet(data)
-
-  // 列宽
-  ws['!cols'] = [{ wch: 24 }, { wch: 80 }]
-
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'DMC')
-
   const ext = format === 'csv' ? '.csv' : '.xlsx'
   const fullName = filename.endsWith(ext) ? filename : filename + ext
 
   if (format === 'csv') {
-    XLSX.writeFile(wb, fullName, { bookType: 'csv' })
+    // 手写 RFC 4180 CSV:含逗号/双引号/换行的字段全 quote
+    const lines: string[] = ['序号,DMC码']
+    for (const r of rows) {
+      lines.push(`${csvField(r.seq)},${csvField(r.dmc)}`)
+    }
+    // BOM + CRLF:Excel 打开中文文件时强烈依赖 UTF-8 BOM 否则乱码
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })
+    downloadBlob(blob, fullName)
   } else {
+    const data = [
+      ['序号', 'DMC码'],
+      ...rows.map((r) => [r.seq, r.dmc]),
+    ]
+    const ws = XLSX.utils.aoa_to_sheet(data)
+    ws['!cols'] = [{ wch: 24 }, { wch: 80 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'DMC')
     XLSX.writeFile(wb, fullName, { bookType: 'xlsx' })
   }
+}
+
+/** RFC 4180 CSV 字段转义:含 , / " / 换行 时 quote 包裹,内部 " 转 "" */
+function csvField(s: string): string {
+  if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+    return `"${s.replace(/"/g, '""')}"`
+  }
+  return s
+}
+
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
