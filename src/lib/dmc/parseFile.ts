@@ -60,7 +60,8 @@ export function exportSeqDmc(
 
   if (format === 'csv') {
     // 手写 RFC 4180 CSV:含逗号/双引号/换行的字段全 quote
-    const lines: string[] = ['序号,DMC码']
+    // 无表头:工厂/标签厂直接拿数据用,加表头反而要他们额外处理
+    const lines: string[] = []
     for (const r of rows) {
       lines.push(`${csvField(r.seq)},${csvField(r.dmc)}`)
     }
@@ -68,10 +69,8 @@ export function exportSeqDmc(
     const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })
     downloadBlob(blob, fullName)
   } else {
-    const data = [
-      ['序号', 'DMC码'],
-      ...rows.map((r) => [r.seq, r.dmc]),
-    ]
+    // 无表头(同 CSV)
+    const data = rows.map((r) => [r.seq, r.dmc])
     const ws = XLSX.utils.aoa_to_sheet(data)
     ws['!cols'] = [{ wch: 24 }, { wch: 80 }]
     const wb = XLSX.utils.book_new()
