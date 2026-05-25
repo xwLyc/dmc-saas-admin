@@ -188,12 +188,12 @@ function AnalysisView({
         />
       )}
 
-      {/* 进度链表 */}
-      <Card size="small" style={{ marginBottom: 16 }} title="校验进度">
-        <Space direction="vertical" style={{ width: '100%' }} size="small">
+      {/* 进度链表(每步显示做了什么 + 通过/失败的具体统计)*/}
+      <Card size="small" style={{ marginBottom: 16 }} title={`校验进度(共 3 步)`}>
+        <Space direction="vertical" style={{ width: '100%' }} size={8}>
           {STAGE_ORDER.map((stage) => {
             const s = analysis.steps[stage]
-            return <StepRow key={stage} stage={stage} state={s} />
+            return <StepRow key={stage} stage={stage} state={s} totalCodes={parsed.total} />
           })}
         </Space>
       </Card>
@@ -222,43 +222,93 @@ function AnalysisView({
   )
 }
 
-function StepRow({ stage, state }: { stage: AnalysisStage; state: AnalysisStepState }) {
+// 每个 step 的说明(校验做什么)+ 通过时的统计描述
+const STAGE_DETAIL: Record<AnalysisStage, { desc: string; passedText: (state: AnalysisStepState, total: number) => string }> = {
+  file_dedup: {
+    desc: '检查同一文件内是否有重复的 DMC 码(客户导出时常见手抖问题)',
+    passedText: (_s, total) => `${total} 条码全部唯一,无重复`,
+  },
+  length_check: {
+    desc: '取最常见长度作为基准,标记长度异常的码(被截断 / 多 char 等)',
+    passedText: (s, total) => `基准长度 ${s.stats?.baselineLength ?? '?'} 字符,${total} 条全部匹配`,
+  },
+  format_check: {
+    desc: '按 GS1 AI 规则解析每条码,支持 (01)GTIN / (21)Serial / (91)Key / (92)Sig 等段',
+    passedText: (_s, total) => `${total} 条均符合 GS1 标准`,
+  },
+}
+
+function StepRow({
+  stage,
+  state,
+  totalCodes,
+}: {
+  stage: AnalysisStage
+  state: AnalysisStepState
+  totalCodes: number
+}) {
   let icon, color, text
   if (state.status === 'pending') {
-    icon = <span style={{ color: '#d9d9d9' }}>○</span>
+    icon = <span style={{ color: '#d9d9d9', fontSize: 18 }}>○</span>
     color = '#999'
     text = '等待'
   } else if (state.status === 'running') {
-    icon = <LoadingOutlined style={{ color: '#1677ff' }} spin />
+    icon = <LoadingOutlined style={{ color: '#1677ff', fontSize: 16 }} spin />
     color = '#1677ff'
-    text = '进行中'
+    text = '进行中...'
   } else if (state.status === 'passed') {
-    icon = <CheckCircleOutlined style={{ color: '#52c41a' }} />
+    icon = <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 16 }} />
     color = '#52c41a'
-    text = '通过'
+    text = STAGE_DETAIL[stage].passedText(state, totalCodes)
   } else {
-    icon = <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+    icon = <CloseCircleOutlined style={{ color: '#ff4d4f', fontSize: 16 }} />
     color = '#ff4d4f'
-    text = `失败 (${state.anomalies?.length ?? 0} 条异常)`
+    text = `发现 ${state.anomalies?.length ?? 0} 条异常 → 详见下方异常表`
   }
 
+  const detail = STAGE_DETAIL[stage]
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-      <span style={{ fontSize: 16, width: 20, textAlign: 'center' }}>{icon}</span>
-      <span style={{ flex: 1, color: state.status === 'failed' ? '#ff4d4f' : undefined }}>
-        {STAGE_LABELS[stage]}
+    <div
+      style={{
+        display: 'flex',
+        gap: 12,
+        padding: '10px 12px',
+        borderRadius: 8,
+        background: state.status === 'failed'
+          ? '#fff1f0'
+          : state.status === 'passed'
+            ? '#f6ffed'
+            : state.status === 'running'
+              ? '#e6f4ff'
+              : '#fafafa',
+        border: '1px solid ' + (
+          state.status === 'failed'
+            ? '#ffccc7'
+            : state.status === 'passed'
+              ? '#b7eb8f'
+              : state.status === 'running'
+                ? '#91caff'
+                : '#f0f0f0'
+        ),
+      }}
+    >
+      <span style={{ width: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {icon}
       </span>
-      <span style={{ color }}>{text}</span>
-      {state.stats?.baselineLength && (
-        <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-          基准长度 {state.stats.baselineLength}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: state.status === 'failed' ? '#cf1322' : '#262626' }}>
+            {STAGE_LABELS[stage]}
+          </span>
+          <span style={{ fontSize: 12, color, fontWeight: state.status === 'passed' || state.status === 'failed' ? 500 : 400 }}>
+            {text}
+          </span>
+        </div>
+        <Typography.Text type="secondary" style={{ fontSize: 11, marginTop: 2, display: 'block', lineHeight: 1.5 }}>
+          {detail.desc}
         </Typography.Text>
-      )}
-      {state.stats?.uniqueCount !== undefined && (
-        <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-          独立 {state.stats.uniqueCount} 条
-        </Typography.Text>
-      )}
+      </div>
     </div>
   )
 }
