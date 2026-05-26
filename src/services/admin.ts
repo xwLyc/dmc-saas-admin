@@ -9,6 +9,7 @@ import type {
   AdminCreateRefundResponse,
   AdminCreateTenantRequest,
   AdminDashboardStats,
+  AdminDashboardStatsQuery,
   AdminListOrdersQuery,
   AdminListOrdersResponse,
   AdminListSubscriptionsQuery,
@@ -140,9 +141,12 @@ export async function listAuditLogs(
 
 // ───── dashboard ─────
 
-export async function getDashboardStats(): Promise<AdminDashboardStats> {
+export async function getDashboardStats(
+  params: AdminDashboardStatsQuery = {},
+): Promise<AdminDashboardStats> {
   return request<AdminDashboardStats>('/admin/dashboard/stats', {
     method: 'GET',
+    params,
   })
 }
 

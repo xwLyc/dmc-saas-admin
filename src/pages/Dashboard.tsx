@@ -8,11 +8,12 @@
  * 数据来自一个 endpoint: GET /admin/dashboard/stats (services/admin.getDashboardStats)
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { history } from '@umijs/max'
+import dayjs, { type Dayjs } from 'dayjs'
 import {
   Card, Row, Col, Spin, Empty, Tag, Tooltip, message,
-  Typography,
+  Typography, DatePicker, Space, Button,
 } from 'antd'
 import {
   ShopOutlined, RiseOutlined, ClockCircleOutlined, WarningOutlined,
@@ -49,24 +50,71 @@ function fmtMonth(ym: string) {
   return `${parseInt(m, 10)}月`
 }
 
+/** 时间范围预设 —— 跟 backend getDashboardStats query 对接;
+ *  默认 'this-month' 跟历史"本月"行为一致 */
+type RangePreset = 'today' | 'last-7d' | 'last-30d' | 'this-month' | 'last-month' | 'last-12m' | 'custom'
+
+interface DateRange {
+  from: Dayjs
+  to: Dayjs
+  preset: RangePreset
+  label: string  // 显示用文案,如"本月 5/1 - 5/26"
+}
+
+function computeRange(preset: Exclude<RangePreset, 'custom'>): DateRange {
+  const now = dayjs()
+  switch (preset) {
+    case 'today':
+      return { from: now.startOf('day'), to: now.endOf('day'), preset, label: '今天' }
+    case 'last-7d':
+      return { from: now.subtract(6, 'day').startOf('day'), to: now.endOf('day'), preset, label: '近 7 天' }
+    case 'last-30d':
+      return { from: now.subtract(29, 'day').startOf('day'), to: now.endOf('day'), preset, label: '近 30 天' }
+    case 'this-month':
+      return { from: now.startOf('month'), to: now.endOf('day'), preset, label: '本月' }
+    case 'last-month': {
+      const lm = now.subtract(1, 'month')
+      return { from: lm.startOf('month'), to: lm.endOf('month'), preset, label: '上月' }
+    }
+    case 'last-12m':
+      return { from: now.subtract(11, 'month').startOf('month'), to: now.endOf('day'), preset, label: '近 12 月' }
+  }
+}
+
+const PRESET_OPTIONS: { key: Exclude<RangePreset, 'custom'>; label: string }[] = [
+  { key: 'today', label: '今天' },
+  { key: 'last-7d', label: '近 7 天' },
+  { key: 'last-30d', label: '近 30 天' },
+  { key: 'this-month', label: '本月' },
+  { key: 'last-month', label: '上月' },
+  { key: 'last-12m', label: '近 12 月' },
+]
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<AdminDashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [range, setRange] = useState<DateRange>(() => computeRange('this-month'))
+
+  // 区间天数计算 —— 给"区间内"标签做附注
+  const rangeDays = useMemo(() => Math.max(1, range.to.diff(range.from, 'day') + 1), [range])
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    getDashboardStats()
+    getDashboardStats({ from: range.from.toISOString(), to: range.to.toISOString() })
       .then((s) => { if (!cancelled) setStats(s) })
       .catch((e) => { if (!cancelled) message.error(getErrorMessage(e, '加载数据看板失败')) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [])
+  }, [range])
 
   if (loading && !stats) {
+    // antd 5: <Spin tip> 必须 nest/fullscreen 模式;独立用直接 warning。
+    // 这里"加载文字"放 Spin 外面更稳。
     return (
       <div style={{ textAlign: 'center', padding: 80 }}>
-        <Spin size="large" tip="加载数据看板..." />
+        <Spin size="large" />
+        <div style={{ marginTop: 12, fontSize: 13, color: '#888' }}>加载数据看板...</div>
       </div>
     )
   }
@@ -92,8 +140,44 @@ export default function DashboardPage() {
   const activeRate = conversionFunnel.everSubscribed === 0 ? 0
     : Math.round((conversionFunnel.activeSubscribed / conversionFunnel.everSubscribed) * 100)
 
+  // 区间 KPI 标签 —— "区间内新增 · {label}"形式,让用户清楚数据范围
+  const rangeNewLabel = `区间新增 · ${range.label}`
+  const rangeRevenueLabel = `区间营收 · ${range.label}`
+
   return (
     <div>
+      {/* ─── 顶部时间范围选择器 ─── */}
+      <Card style={{ marginBottom: 16, borderRadius: 14, border: '1px solid #e5e7eb' }} styles={{ body: { padding: 14 } }}>
+        <Space wrap size={[8, 8]} align="center">
+          <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, marginRight: 4 }}>时间范围</span>
+          {PRESET_OPTIONS.map((opt) => (
+            <Button
+              key={opt.key}
+              type={range.preset === opt.key ? 'primary' : 'default'}
+              size="small"
+              onClick={() => setRange(computeRange(opt.key))}
+            >
+              {opt.label}
+            </Button>
+          ))}
+          <DatePicker.RangePicker
+            size="small"
+            value={range.preset === 'custom' ? [range.from, range.to] : null}
+            onChange={(vals) => {
+              if (!vals || !vals[0] || !vals[1]) return
+              const from = vals[0].startOf('day')
+              const to = vals[1].endOf('day')
+              const days = to.diff(from, 'day') + 1
+              setRange({ from, to, preset: 'custom', label: `自定义 · ${days} 天` })
+            }}
+            placeholder={['开始日期', '结束日期']}
+          />
+          <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>
+            当前:{range.from.format('YYYY-MM-DD')} ~ {range.to.format('YYYY-MM-DD')} ({rangeDays} 天)
+          </span>
+        </Space>
+      </Card>
+
       {/* ─── Tier 1: 9 KPI(现代 SaaS 风格,彩色 icon 块 + 渐变卡)─── */}
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
         <Col xs={12} sm={8} md={6} lg={4}>
@@ -112,10 +196,10 @@ export default function DashboardPage() {
           <KpiCard tone="danger" icon={<FallOutlined />} label="已到期" value={kpi.expiredCount} highlight={kpi.expiredCount > 0} />
         </Col>
         <Col xs={12} sm={8} md={6} lg={4}>
-          <KpiCard tone="purple" icon={<UserAddOutlined />} label="本月新增" value={kpi.newTenantsThisMonth} />
+          <KpiCard tone="purple" icon={<UserAddOutlined />} label={rangeNewLabel} value={kpi.newTenantsInRange} />
         </Col>
         <Col xs={12} sm={8} md={6} lg={4}>
-          <KpiCard tone="gold" icon={<DollarOutlined />} label="本月营收" value={kpi.revenueThisMonth} fmt="money" />
+          <KpiCard tone="gold" icon={<DollarOutlined />} label={rangeRevenueLabel} value={kpi.revenueInRange} fmt="money" />
         </Col>
         <Col xs={12} sm={8} md={6} lg={4}>
           <KpiCard tone="success" icon={<RiseOutlined />} label="累计营收" value={kpi.revenueTotal} fmt="money" />
@@ -128,7 +212,7 @@ export default function DashboardPage() {
       {/* ─── Tier 2: 趋势图 ─── */}
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} lg={12}>
-          <Card title="近 12 月营收 (元)" size="small" style={chartCardStyle} styles={chartCardStyles}>
+          <Card title={`营收趋势(月,${range.label})`} size="small" style={chartCardStyle} styles={chartCardStyles}>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={revenueByMonth} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
                 <defs>
@@ -152,7 +236,7 @@ export default function DashboardPage() {
           </Card>
         </Col>
         <Col xs={24} lg={12}>
-          <Card title="近 12 月新增工厂" size="small" style={chartCardStyle} styles={chartCardStyles}>
+          <Card title={`新增工厂趋势(月,${range.label})`} size="small" style={chartCardStyle} styles={chartCardStyles}>
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={newTenantsByMonth} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
                 <defs>
