@@ -26,6 +26,10 @@ import type {
   AdminTenantDetail,
   AdminTenantRow,
   AdminUpdateTenantStatusRequest,
+  CreateDmcBatchRequest,
+  AdminDmcBatchRow,
+  AdminListDmcBatchesQuery,
+  AdminListDmcBatchesResponse,
 } from '@dmc/contracts'
 import { clearTokens, getRefreshToken, saveTokens } from './token'
 
@@ -190,5 +194,28 @@ export async function refundOrder(
     method: 'POST',
     data: body,
     skipErrorHandler: true,
+  })
+}
+
+// ───── dmc-batches ─────
+
+/** 创建码表(含全量码) */
+export async function createDmcBatch(
+  body: CreateDmcBatchRequest,
+): Promise<AdminDmcBatchRow> {
+  return request<AdminDmcBatchRow>('/admin/dmc-batches', {
+    method: 'POST',
+    data: body,
+    skipErrorHandler: true,
+  })
+}
+
+/** 码表列表 */
+export async function listDmcBatches(
+  params: AdminListDmcBatchesQuery,
+): Promise<AdminListDmcBatchesResponse> {
+  return request<AdminListDmcBatchesResponse>('/admin/dmc-batches', {
+    method: 'GET',
+    params,
   })
 }
