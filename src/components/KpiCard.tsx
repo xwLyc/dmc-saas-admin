@@ -2,7 +2,7 @@
  * KpiCard —— 数据看板顶部 KPI 块,共享组件。
  *
  * 视觉:渐变背景 + 彩色 icon 圆角块 + 大字数字 + 浅色 label + hover lift。
- * Dashboard / Subscriptions 等页面共用,保证 KPI 视觉节奏一致。
+ * Dashboard 等页面共用,保证 KPI 视觉节奏一致。
  */
 
 import type { ReactNode } from 'react'

@@ -75,16 +75,10 @@ export default defineConfig({
       icon: 'ShopOutlined',
     },
     {
-      path: '/subscriptions',
-      component: '@/pages/Subscriptions',
-      name: '订阅订单',
-      icon: 'DollarOutlined',
-    },
-    {
       path: '/orders',
       component: '@/pages/Orders',
       name: '订单管理',
-      icon: 'FileDoneOutlined',
+      icon: 'DollarOutlined',
     },
     {
       path: '/dmc-batches',

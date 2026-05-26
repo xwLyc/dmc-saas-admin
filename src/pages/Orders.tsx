@@ -1,15 +1,12 @@
 /**
  * 订单管理 —— ProTable 列所有订单(全状态)+ 详情 drawer + 退款 modal。
  *
- * 跟 /subscriptions 区别:
- *   /subscriptions = 已开通的(paid),用于看收入
- *   /orders        = 全状态(pending/paid/expired/cancelled/refunded),用于运营/退款
- *
  * mock 模式下退款立即 succeeded(backend createRefundByAdmin 走完整 Subscription 撤销),
  * 阶段二接真微信后退款变 pending → 等回调改 succeeded。
  */
 
 import { useState } from 'react'
+import { history } from '@umijs/max'
 import { ModalForm, ProDescriptions, ProFormDigit, ProFormTextArea, ProTable } from '@ant-design/pro-components'
 import type { ProColumns } from '@ant-design/pro-components'
 import {
@@ -76,6 +73,21 @@ export default function OrdersPage() {
 
   const columns: ProColumns<AdminOrderRow>[] = [
     {
+      title: '工厂',
+      dataIndex: 'tenantName',
+      fixed: 'left',
+      width: 160,
+      fieldProps: { placeholder: '工厂名模糊搜索' },
+      render: (_, row) => (
+        <Typography.Link
+          href={`/tenants/${row.tenantId}`}
+          onClick={(e) => { e.preventDefault(); history.push(`/tenants/${row.tenantId}`) }}
+        >
+          {row.tenantName}
+        </Typography.Link>
+      ),
+    },
+    {
       title: '订单号',
       dataIndex: 'id',
       width: 320,
@@ -85,13 +97,6 @@ export default function OrdersPage() {
           {v as string}
         </Typography.Text>
       ),
-    },
-    {
-      title: '工厂',
-      dataIndex: 'tenantName',
-      width: 160,
-      fieldProps: { placeholder: '工厂名模糊搜索' },
-      render: (_, row) => <Typography.Text>{row.tenantName}</Typography.Text>,
     },
     {
       title: '套餐',

@@ -429,7 +429,7 @@ export default function DashboardPage() {
   )
 }
 
-// KpiCard / KPI_TONE / ColorKey 已抽到 @/components/KpiCard,供 Subscriptions 等页面共用
+// KpiCard / KPI_TONE / ColorKey 已抽到 @/components/KpiCard
 
 // ─── 转化漏斗单条 step ───
 

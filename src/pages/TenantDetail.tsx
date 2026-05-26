@@ -108,9 +108,9 @@ export default function TenantDetailPage() {
           <Button
             type="text"
             icon={<ArrowLeftOutlined />}
-            onClick={() => history.push('/tenants')}
+            onClick={() => history.back()}
           >
-            返回列表
+            返回
           </Button>
           <span style={{ fontSize: 16 }}>{detail.name}</span>
           <Tag color={m.color}>{m.text}</Tag>
