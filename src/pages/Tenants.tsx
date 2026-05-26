@@ -3,7 +3,7 @@
  * 接 backend GET /admin/tenants。新建走 POST /admin/tenants。
  */
 
-import { Link } from '@umijs/max'
+import { history } from '@umijs/max'
 import {
   ModalForm,
   ProFormText,
@@ -112,9 +112,18 @@ const columns: ProColumns<AdminTenantRow>[] = [
     fixed: 'left',
     width: 180,
     render: (_, row) => (
-      <Link to={`/tenants/${row.id}`}>
-        <Typography.Text strong>{row.name}</Typography.Text>
-      </Link>
+      // Typography.Link 自带 antd 链接色 + hover 高亮(primary blue);
+      // href 让右键复制能用,onClick preventDefault 走 SPA 路由不刷新整页
+      <Typography.Link
+        href={`/tenants/${row.id}`}
+        strong
+        onClick={(e) => {
+          e.preventDefault()
+          history.push(`/tenants/${row.id}`)
+        }}
+      >
+        {row.name}
+      </Typography.Link>
     ),
   },
   { title: '联系人', dataIndex: 'contactName', width: 100, search: false },

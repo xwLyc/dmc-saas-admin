@@ -5,7 +5,7 @@
  * source 派生:tenant.referredByTenantId 是否为空 → 'self' (自助) / 'referred' (被推荐)。
  */
 
-import { Link } from '@umijs/max'
+import { history } from '@umijs/max'
 import { ProTable } from '@ant-design/pro-components'
 import type { ProColumns } from '@ant-design/pro-components'
 import { Tag, Typography } from 'antd'
@@ -49,9 +49,18 @@ const columns: ProColumns<AdminSubscriptionRow>[] = [
     width: 180,
     fieldProps: { placeholder: '工厂名模糊搜索' },
     render: (_, row) => (
-      <Link to={`/tenants/${row.tenantId}`}>
-        <Typography.Text strong>{row.tenantName}</Typography.Text>
-      </Link>
+      // Typography.Link 自带 antd 链接色 + hover 高亮(primary blue);
+      // href 让右键复制能用,onClick preventDefault 走 SPA 路由不刷新整页
+      <Typography.Link
+        href={`/tenants/${row.tenantId}`}
+        strong
+        onClick={(e) => {
+          e.preventDefault()
+          history.push(`/tenants/${row.tenantId}`)
+        }}
+      >
+        {row.tenantName}
+      </Typography.Link>
     ),
   },
   {
