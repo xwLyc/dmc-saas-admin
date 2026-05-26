@@ -81,6 +81,12 @@ export default defineConfig({
       icon: 'DollarOutlined',
     },
     {
+      path: '/orders',
+      component: '@/pages/Orders',
+      name: '订单管理',
+      icon: 'FileDoneOutlined',
+    },
+    {
       path: '/dmc-batches',
       component: '@/pages/DmcBatches',
       name: 'DMC 序号生成',

@@ -5,10 +5,15 @@
 
 import { request } from '@umijs/max'
 import type {
+  AdminCreateRefundRequest,
+  AdminCreateRefundResponse,
   AdminCreateTenantRequest,
   AdminDashboardStats,
+  AdminListOrdersQuery,
+  AdminListOrdersResponse,
   AdminListSubscriptionsQuery,
   AdminListSubscriptionsResponse,
+  AdminOrderDetail,
   AdminRenewTenantRequest,
   AdminListAuditLogsQuery,
   AdminListAuditLogsResponse,
@@ -150,5 +155,36 @@ export async function listSubscriptions(
   return request<AdminListSubscriptionsResponse>('/admin/subscriptions', {
     method: 'GET',
     params,
+  })
+}
+
+// ───── orders ─────
+
+/** 所有订单(含 pending/expired/refunded;比 listSubscriptions 范围更广)*/
+export async function listOrders(
+  params: AdminListOrdersQuery,
+): Promise<AdminListOrdersResponse> {
+  return request<AdminListOrdersResponse>('/admin/orders', {
+    method: 'GET',
+    params,
+  })
+}
+
+/** 订单详情(含 payments + refunds nested) */
+export async function getOrderDetail(id: string): Promise<AdminOrderDetail> {
+  return request<AdminOrderDetail>(`/admin/orders/${encodeURIComponent(id)}`, {
+    method: 'GET',
+  })
+}
+
+/** 发起退款(mock 模式直接 succeeded,真模式 pending 等回调) */
+export async function refundOrder(
+  id: string,
+  body: AdminCreateRefundRequest,
+): Promise<AdminCreateRefundResponse> {
+  return request<AdminCreateRefundResponse>(`/admin/orders/${encodeURIComponent(id)}/refund`, {
+    method: 'POST',
+    data: body,
+    skipErrorHandler: true,
   })
 }
