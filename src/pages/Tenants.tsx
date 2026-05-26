@@ -116,7 +116,6 @@ const columns: ProColumns<AdminTenantRow>[] = [
       // href 让右键复制能用,onClick preventDefault 走 SPA 路由不刷新整页
       <Typography.Link
         href={`/tenants/${row.id}`}
-        strong
         onClick={(e) => {
           e.preventDefault()
           history.push(`/tenants/${row.id}`)
