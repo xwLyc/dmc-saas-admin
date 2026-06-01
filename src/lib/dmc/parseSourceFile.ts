@@ -1,5 +1,5 @@
 /**
- * 客户码源文件解析（xlsx/xls/csv）—— 三处导入入口共用。
+ * 客户码源文件解析（xlsx/xls/csv/txt）—— 三处导入入口共用。
  *
  * 历史背景：以下三个组件最初各自实现了一份几乎相同的逻辑，
  *   - components/container/ProductFormModal.handleFileSelect
@@ -10,9 +10,10 @@
  *
  * ─── 处理的文件形态 ─────────────────────────────────────────────
  *
- * **CSV**（`.csv`）：
+ * **CSV / TXT**（`.csv` / `.txt`）：
  *   绕开 XLSX 解析，按行读整行原始文本。原因：俄罗斯 KM AI 21 serial 字符集 82
  *   允许 `,`，没引号包裹时 XLSX 会把一条码按逗号切成多列。
+ *   TXT 走同一分支：约定每行一条 DMC 码，空行跳过。
  *
  * **XLSX/XLS**：每行可能多列，按下面双形态规则归一成一条码：
  *   形态 1（客户内部 ERP 双列）：A=GTIN+serial 短码（无 crypto，~31 字符），
@@ -58,10 +59,10 @@ export async function parseSourceFile(
   options: ParseSourceOptions = {},
 ): Promise<string[]> {
   const { headerPattern, isValidKm } = options
-  const isCsv = /\.csv$/i.test(file.name)
+  const isLineBased = /\.(csv|txt)$/i.test(file.name)
 
   let codes: string[]
-  if (isCsv) {
+  if (isLineBased) {
     const text = await file.text()
     codes = text
       .split(/\r?\n/)

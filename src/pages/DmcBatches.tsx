@@ -51,7 +51,7 @@ export default function DmcBatchesPage() {
       setAnalysis(result)
       setPhase(result.passed ? 'configure' : 'failed')
       if (result.passed) {
-        setBatchName(file.name.replace(/\.(csv|xlsx|xls)$/i, ''))
+        setBatchName(file.name.replace(/\.(csv|txt|xlsx|xls)$/i, ''))
       }
     } catch (err) {
       message.error(err instanceof Error ? err.message : '文件解析失败')
@@ -79,7 +79,7 @@ export default function DmcBatchesPage() {
   const handleExport = async (format: 'csv' | 'xlsx') => {
     if (assigned.length === 0 || !parsed) return
 
-    const baseName = parsed.filename.replace(/\.(csv|xlsx|xls)$/i, '') + '_带序号'
+    const baseName = parsed.filename.replace(/\.(csv|txt|xlsx|xls)$/i, '') + '_带序号'
     exportSeqDmc(assigned, baseName, format)
     message.success(`已导出 ${assigned.length} 条 ${format.toUpperCase()}`)
 
@@ -104,7 +104,7 @@ export default function DmcBatchesPage() {
   }
 
   const uploadProps: UploadProps = {
-    accept: '.csv,.xlsx,.xls',
+    accept: '.csv,.txt,.xlsx,.xls',
     showUploadList: false,
     beforeUpload: (file) => { handleFile(file); return false },
   }
