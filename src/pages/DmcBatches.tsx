@@ -322,13 +322,21 @@ function AnalysisView({
   onRetry: () => void
 }) {
   const failed = !analysis.passed
+  const failedBaseline =
+    failed && analysis.failedStage === 'length_check'
+      ? analysis.steps.length_check.stats?.baselineLength
+      : undefined
 
   return (
     <div>
       {failed ? (
         <Alert
           type="error" showIcon
-          message={`校验未通过（${STAGE_LABELS[analysis.failedStage!]}）`}
+          message={
+            failedBaseline != null
+              ? `校验未通过（${STAGE_LABELS[analysis.failedStage!]}，基准长度 ${failedBaseline} 字符）`
+              : `校验未通过（${STAGE_LABELS[analysis.failedStage!]}）`
+          }
           description={`文件 ${parsed.filename} 共 ${parsed.total} 行，在"${STAGE_LABELS[analysis.failedStage!]}"阶段发现异常，请修复后重新上传。`}
           style={{ marginBottom: 16 }}
         />
@@ -389,7 +397,8 @@ function StepRow({ stage, state, totalCodes }: {
     text = STAGE_DETAIL[stage].passedText(state, totalCodes)
   } else {
     icon = <CloseCircleOutlined style={{ color: '#ff4d4f', fontSize: 16 }} />; color = '#ff4d4f'
-    text = `发现 ${state.anomalies?.length ?? 0} 条异常 → 详见下方异常表`
+    const baselinePart = state.stats?.baselineLength != null ? `基准 ${state.stats.baselineLength} 字符，` : ''
+    text = `${baselinePart}发现 ${state.anomalies?.length ?? 0} 条异常 → 详见下方异常表`
   }
 
   return (
