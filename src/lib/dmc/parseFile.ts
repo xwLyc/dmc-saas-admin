@@ -44,35 +44,35 @@ export async function parseDmcFile(file: File): Promise<ParsedDmcFile> {
 
 /**
  * 导出 DMC + 序号到 csv 或 xlsx。
- *   - 两列:序号 | DMC码
+ *   - includeSeq=true (默认): 两列 序号 | DMC码
+ *   - includeSeq=false: 只导 DMC 一列(用户在 UI 里关掉了序号开关)
  *   - CSV 手写转义:任何含 `,` / `"` / 换行 的字段加双引号,内部 `"` 转 `""`
  *     (RFC 4180,标签厂用 Excel 打开必能正确分列)
  *   - XLSX 走 SheetJS aoa_to_sheet,无需手转义
- *   - 中文列名(工厂老板看得懂)
+ *   - 无表头:工厂/标签厂直接拿数据用,加表头反而要他们额外处理
  */
 export function exportSeqDmc(
   rows: Array<{ seq: string; dmc: string }>,
   filename: string,
   format: 'csv' | 'xlsx',
+  options?: { includeSeq?: boolean },
 ): void {
+  const includeSeq = options?.includeSeq !== false
   const ext = format === 'csv' ? '.csv' : '.xlsx'
   const fullName = filename.endsWith(ext) ? filename : filename + ext
 
   if (format === 'csv') {
-    // 手写 RFC 4180 CSV:含逗号/双引号/换行的字段全 quote
-    // 无表头:工厂/标签厂直接拿数据用,加表头反而要他们额外处理
     const lines: string[] = []
     for (const r of rows) {
-      lines.push(`${csvField(r.seq)},${csvField(r.dmc)}`)
+      lines.push(includeSeq ? `${csvField(r.seq)},${csvField(r.dmc)}` : csvField(r.dmc))
     }
     // BOM + CRLF:Excel 打开中文文件时强烈依赖 UTF-8 BOM 否则乱码
     const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })
     downloadBlob(blob, fullName)
   } else {
-    // 无表头(同 CSV)
-    const data = rows.map((r) => [r.seq, r.dmc])
+    const data = rows.map((r) => (includeSeq ? [r.seq, r.dmc] : [r.dmc]))
     const ws = XLSX.utils.aoa_to_sheet(data)
-    ws['!cols'] = [{ wch: 24 }, { wch: 80 }]
+    ws['!cols'] = includeSeq ? [{ wch: 24 }, { wch: 80 }] : [{ wch: 80 }]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'DMC')
     XLSX.writeFile(wb, fullName, { bookType: 'xlsx' })

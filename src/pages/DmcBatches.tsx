@@ -10,7 +10,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Card, Button, Upload, Steps, Input, Table, Tag, Space, Alert,
-  Typography, Divider, message, InputNumber, Collapse, Select, Spin,
+  Typography, Divider, message, InputNumber, Collapse, Select, Spin, Switch,
 } from 'antd'
 import type { UploadProps } from 'antd'
 import {
@@ -36,6 +36,9 @@ export default function DmcBatchesPage() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null)
   const [startSeq, setStartSeq] = useState('ADU000001')
   const [previewCount, setPreviewCount] = useState(10)
+  /** 是否在导出文件里带序号列。关掉只导 DMC 一列(标签厂偶尔需要)。
+   *  后端 createDmcBatch 仍然保存 seq,跟导出文件解耦——以后想再导带序号版直接重导。 */
+  const [includeSeq, setIncludeSeq] = useState(true)
   const [selectedTenant, setSelectedTenant] = useState<AdminTenantRow | null>(null)
   const [batchName, setBatchName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -79,8 +82,9 @@ export default function DmcBatchesPage() {
   const handleExport = async (format: 'csv' | 'xlsx') => {
     if (assigned.length === 0 || !parsed) return
 
-    const baseName = parsed.filename.replace(/\.(csv|txt|xlsx|xls)$/i, '') + '_带序号'
-    exportSeqDmc(assigned, baseName, format)
+    const baseName =
+      parsed.filename.replace(/\.(csv|txt|xlsx|xls)$/i, '') + (includeSeq ? '_带序号' : '_仅DMC')
+    exportSeqDmc(assigned, baseName, format, { includeSeq })
     message.success(`已导出 ${assigned.length} 条 ${format.toUpperCase()}`)
 
     if (!selectedTenant) return
@@ -190,6 +194,8 @@ export default function DmcBatchesPage() {
             setPreviewCount={setPreviewCount}
             batchName={batchName}
             setBatchName={setBatchName}
+            includeSeq={includeSeq}
+            setIncludeSeq={setIncludeSeq}
             selectedTenant={selectedTenant}
             saving={saving}
             onExport={handleExport}
@@ -451,6 +457,7 @@ function AnomalyTable({ anomalies }: { anomalies: AnalysisAnomaly[] }) {
 function ConfigureView({
   parsed, analysis, assigned, startSeq, setStartSeq,
   previewCount, setPreviewCount, batchName, setBatchName,
+  includeSeq, setIncludeSeq,
   selectedTenant, saving, onExport,
 }: {
   parsed: ParsedDmcFile; analysis: AnalysisResult
@@ -458,6 +465,7 @@ function ConfigureView({
   startSeq: string; setStartSeq: (v: string) => void
   previewCount: number; setPreviewCount: (v: number) => void
   batchName: string; setBatchName: (v: string) => void
+  includeSeq: boolean; setIncludeSeq: (v: boolean) => void
   selectedTenant: AdminTenantRow | null
   saving: boolean; onExport: (format: 'csv' | 'xlsx') => void
 }) {
@@ -499,11 +507,27 @@ function ConfigureView({
         }]}
       />
 
-      <Card size="small" title="序号配置" style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+      <Card
+        size="small"
+        title="序号配置"
+        style={{ marginBottom: 16 }}
+        extra={
+          <Space>
+            <span style={{ fontSize: 12, color: '#666' }}>导出包含序号</span>
+            <Switch checked={includeSeq} onChange={setIncludeSeq} />
+          </Space>
+        }
+      >
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap', opacity: includeSeq ? 1 : 0.45 }}>
           <div>
             <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>起始序号</div>
-            <Input value={startSeq} onChange={(e) => setStartSeq(e.target.value)} placeholder="ADU000001" style={{ width: 220 }} />
+            <Input
+              value={startSeq}
+              onChange={(e) => setStartSeq(e.target.value)}
+              placeholder="ADU000001"
+              style={{ width: 220 }}
+              disabled={!includeSeq}
+            />
             <Typography.Text type="secondary" style={{ display: 'block', fontSize: 11, marginTop: 4 }}>
               自动识别"前缀 + 末尾数字"，递增补零
             </Typography.Text>
@@ -522,6 +546,11 @@ function ConfigureView({
             <InputNumber min={5} max={500} value={previewCount} onChange={(v) => setPreviewCount(v ?? 10)} style={{ width: 100 }} />
           </div>
         </div>
+        {!includeSeq && (
+          <Typography.Text type="secondary" style={{ display: 'block', fontSize: 11, marginTop: 12 }}>
+            ⓘ 已关闭序号:导出文件只含 DMC 一列。后端仍会保存序号(以备日后查询/重导)。
+          </Typography.Text>
+        )}
         {selectedTenant && (
           <div style={{ marginTop: 12 }}>
             <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>码表名称（保存到工厂时显示）</div>
@@ -548,7 +577,14 @@ function ConfigureView({
           dataSource={previewSlice} rowKey="seq" pagination={false} size="small"
           columns={[
             { title: '#', width: 60, render: (_v, _r, idx) => idx + 1 },
-            { title: '序号', dataIndex: 'seq', width: 220, render: (s: string) => <Typography.Text code style={{ fontSize: 13 }}>{s}</Typography.Text> },
+            ...(includeSeq
+              ? [{
+                  title: '序号',
+                  dataIndex: 'seq',
+                  width: 220,
+                  render: (s: string) => <Typography.Text code style={{ fontSize: 13 }}>{s}</Typography.Text>,
+                }]
+              : []),
             { title: 'DMC 码', dataIndex: 'dmc', ellipsis: true, render: (c: string) => <Typography.Text code style={{ fontSize: 11 }}>{c.length > 80 ? c.slice(0, 80) + '...' : c}</Typography.Text> },
           ]}
         />
