@@ -43,22 +43,26 @@ export async function parseDmcFile(file: File): Promise<ParsedDmcFile> {
 }
 
 /**
- * 导出 DMC + 序号到 csv 或 xlsx。
- *   - includeSeq=true (默认): 两列 序号 | DMC码
+ * 导出 DMC + 序号到 csv / xlsx / txt。
+ *   - includeSeq=true (默认): 两列 序号 + DMC码
  *   - includeSeq=false: 只导 DMC 一列(用户在 UI 里关掉了序号开关)
- *   - CSV 手写转义:任何含 `,` / `"` / 换行 的字段加双引号,内部 `"` 转 `""`
- *     (RFC 4180,标签厂用 Excel 打开必能正确分列)
- *   - XLSX 走 SheetJS aoa_to_sheet,无需手转义
- *   - 无表头:工厂/标签厂直接拿数据用,加表头反而要他们额外处理
+ *
+ * 格式细节:
+ *   - CSV:RFC 4180,含 `,` / `"` / 换行 的字段 quote 包裹 + `"` → `""`。
+ *     Excel 打开自动还原,看不到 `""`;直接文本编辑器看会有。
+ *   - XLSX:SheetJS aoa_to_sheet 写 cell 原值,Excel 打开干净无 escape。
+ *   - TXT:序号 + 3 个空格 + DMC 码,纯文本无 escape。这是标签厂使用的实际格式
+ *     (跟客户提供的「使用的.TXT」字节对齐)。码里含 `"` 等特殊字符会原样保留。
+ *   无表头:工厂/标签厂直接拿数据用,加表头反而要他们额外处理。
  */
 export function exportSeqDmc(
   rows: Array<{ seq: string; dmc: string }>,
   filename: string,
-  format: 'csv' | 'xlsx',
+  format: 'csv' | 'xlsx' | 'txt',
   options?: { includeSeq?: boolean },
 ): void {
   const includeSeq = options?.includeSeq !== false
-  const ext = format === 'csv' ? '.csv' : '.xlsx'
+  const ext = '.' + format
   const fullName = filename.endsWith(ext) ? filename : filename + ext
 
   if (format === 'csv') {
@@ -68,6 +72,16 @@ export function exportSeqDmc(
     }
     // BOM + CRLF:Excel 打开中文文件时强烈依赖 UTF-8 BOM 否则乱码
     const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })
+    downloadBlob(blob, fullName)
+  } else if (format === 'txt') {
+    // 标签厂格式:`{seq}   {dmc}` (3 空格分隔),或只有 `{dmc}` 一列。
+    // 用 \n 不用 \r\n —— 标签厂原 TXT 就是 \n,跟它保持一致。
+    const lines: string[] = []
+    for (const r of rows) {
+      lines.push(includeSeq ? `${r.seq}   ${r.dmc}` : r.dmc)
+    }
+    // BOM 也带上:Windows 记事本默认按 ANSI 打开,有 BOM 才认 UTF-8 不乱码
+    const blob = new Blob(['﻿' + lines.join('\n') + '\n'], { type: 'text/plain;charset=utf-8' })
     downloadBlob(blob, fullName)
   } else {
     const data = rows.map((r) => (includeSeq ? [r.seq, r.dmc] : [r.dmc]))

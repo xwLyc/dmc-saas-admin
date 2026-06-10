@@ -10,15 +10,17 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Card, Button, Upload, Steps, Input, Table, Tag, Space, Alert,
-  Typography, Divider, message, InputNumber, Collapse, Select, Spin, Switch,
+  Typography, Divider, message, InputNumber, Collapse, Select, Spin, Switch, Tooltip,
 } from 'antd'
 import type { UploadProps } from 'antd'
 import {
   CloudUploadOutlined, CheckCircleOutlined, CloseCircleOutlined,
   LoadingOutlined, DownloadOutlined, ReloadOutlined, SaveOutlined,
-  RightOutlined,
+  RightOutlined, SafetyCertificateOutlined,
 } from '@ant-design/icons'
+import { Modal, Progress } from 'antd'
 import { parseDmcFile, exportSeqDmc, type ParsedDmcFile } from '@/lib/dmc/parseFile'
+import { verifyDmc, type VerifyMismatch } from '@/services/dmcVerify'
 import { analyzeDmcCodes } from '@/lib/dmc/validate'
 import { assignSeqs } from '@/lib/dmc/sequence'
 import {
@@ -79,7 +81,7 @@ export default function DmcBatchesPage() {
   }, [analysis, startSeq])
 
   // ─── 导出 (+ 保存) ───
-  const handleExport = async (format: 'csv' | 'xlsx') => {
+  const handleExport = async (format: 'csv' | 'xlsx' | 'txt') => {
     if (assigned.length === 0 || !parsed) return
 
     const baseName =
@@ -467,7 +469,7 @@ function ConfigureView({
   batchName: string; setBatchName: (v: string) => void
   includeSeq: boolean; setIncludeSeq: (v: boolean) => void
   selectedTenant: AdminTenantRow | null
-  saving: boolean; onExport: (format: 'csv' | 'xlsx') => void
+  saving: boolean; onExport: (format: 'csv' | 'xlsx' | 'txt') => void
 }) {
   const total = assigned.length
   const lastSeq = total > 0 ? assigned[total - 1].seq : ''
@@ -475,6 +477,31 @@ function ConfigureView({
     () => assigned.slice(0, Math.min(previewCount, total)),
     [assigned, previewCount, total],
   )
+
+  // 验证模态状态
+  const [verifyOpen, setVerifyOpen] = useState(false)
+  const [verifyPhase, setVerifyPhase] = useState<'idle' | 'running' | 'done' | 'failed'>('idle')
+  const [verifyProgress, setVerifyProgress] = useState<{ done: number; total: number; ok: number; mismatch: number } | null>(null)
+  const [verifyResult, setVerifyResult] = useState<{ ok: number; mismatch: number; mismatchSamples: VerifyMismatch[]; durationMs: number } | null>(null)
+  const [verifyError, setVerifyError] = useState<string | null>(null)
+
+  const handleVerify = async () => {
+    setVerifyOpen(true)
+    setVerifyPhase('running')
+    setVerifyProgress({ done: 0, total: assigned.length, ok: 0, mismatch: 0 })
+    setVerifyResult(null)
+    setVerifyError(null)
+    try {
+      const result = await verifyDmc(assigned.map((a) => a.dmc), {
+        onProgress: (p) => setVerifyProgress(p),
+      })
+      setVerifyResult(result)
+      setVerifyPhase('done')
+    } catch (err) {
+      setVerifyError(err instanceof Error ? err.message : '验证失败')
+      setVerifyPhase('failed')
+    }
+  }
 
   return (
     <>
@@ -564,9 +591,25 @@ function ConfigureView({
         title={`预览（显示前 ${previewSlice.length} 条，共 ${total} 条）`}
         extra={
           <Space>
-            <Button icon={<DownloadOutlined />} loading={saving} onClick={() => onExport('csv')}>
-              导出 CSV{selectedTenant ? ' + 保存' : ''}
-            </Button>
+            <Tooltip title="对每条码做 encode→decode round-trip。通过 = 工厂打出来扫码机一定能扫回原码">
+              <Button
+                icon={<SafetyCertificateOutlined />}
+                onClick={handleVerify}
+                style={{ background: '#f6ffed', borderColor: '#52c41a', color: '#389e0d' }}
+              >
+                验证 DMC 有效性
+              </Button>
+            </Tooltip>
+            <Tooltip title="标签厂/打印机常用格式,纯文本无 escape,码原样输出">
+              <Button icon={<DownloadOutlined />} loading={saving} onClick={() => onExport('txt')}>
+                导出 TXT{selectedTenant ? ' + 保存' : ''}
+              </Button>
+            </Tooltip>
+            <Tooltip title="RFC 4180 标准 CSV,含 &quot; 的码会按规则 escape 成 &quot;&quot;">
+              <Button icon={<DownloadOutlined />} loading={saving} onClick={() => onExport('csv')}>
+                导出 CSV{selectedTenant ? ' + 保存' : ''}
+              </Button>
+            </Tooltip>
             <Button type="primary" icon={selectedTenant ? <SaveOutlined /> : <DownloadOutlined />} loading={saving} onClick={() => onExport('xlsx')}>
               导出 XLSX{selectedTenant ? ' + 保存' : ''}
             </Button>
@@ -589,6 +632,138 @@ function ConfigureView({
           ]}
         />
       </Card>
+
+      <VerifyModal
+        open={verifyOpen}
+        phase={verifyPhase}
+        progress={verifyProgress}
+        result={verifyResult}
+        error={verifyError}
+        onClose={() => setVerifyOpen(false)}
+      />
     </>
+  )
+}
+
+// ─── 验证 DMC 有效性 模态 ───
+
+function VerifyModal({
+  open, phase, progress, result, error, onClose,
+}: {
+  open: boolean
+  phase: 'idle' | 'running' | 'done' | 'failed'
+  progress: { done: number; total: number; ok: number; mismatch: number } | null
+  result: { ok: number; mismatch: number; mismatchSamples: VerifyMismatch[]; durationMs: number } | null
+  error: string | null
+  onClose: () => void
+}) {
+  const percent = progress && progress.total > 0
+    ? Math.round((progress.done / progress.total) * 100)
+    : 0
+  const allPassed = phase === 'done' && result?.mismatch === 0
+
+  return (
+    <Modal
+      open={open}
+      title={
+        <Space>
+          <SafetyCertificateOutlined style={{ color: '#52c41a' }} />
+          DMC 有效性验证 (encode → decode round-trip)
+        </Space>
+      }
+      onCancel={phase === 'running' ? undefined : onClose}
+      closable={phase !== 'running'}
+      maskClosable={phase !== 'running'}
+      footer={phase === 'running' ? null : (
+        <Button type="primary" onClick={onClose}>
+          {allPassed ? '完成,可送厂' : '关闭'}
+        </Button>
+      )}
+      width={720}
+    >
+      {phase === 'running' && progress && (
+        <div>
+          <Typography.Paragraph>
+            正在用 libdmtx 对 <b>{progress.total}</b> 条码做 encode → decode round-trip。
+            <br />
+            通过 = 工厂打印后扫码机一定能扫回原字节。
+          </Typography.Paragraph>
+          <Progress percent={percent} status="active" />
+          <div style={{ marginTop: 12, fontSize: 13 }}>
+            <Typography.Text>已检 {progress.done} / {progress.total}</Typography.Text>
+            <Typography.Text type="success" style={{ marginLeft: 16 }}>
+              通过 {progress.ok}
+            </Typography.Text>
+            {progress.mismatch > 0 && (
+              <Typography.Text type="danger" style={{ marginLeft: 16, fontWeight: 600 }}>
+                不通过 {progress.mismatch}
+              </Typography.Text>
+            )}
+          </div>
+        </div>
+      )}
+
+      {phase === 'done' && result && (
+        <div>
+          {allPassed ? (
+            <Alert
+              type="success" showIcon
+              message={`全部 ${result.ok} 条通过 ✓`}
+              description={`耗时 ${(result.durationMs / 1000).toFixed(1)}s。可安全送给标签厂打印。`}
+              style={{ marginBottom: 16 }}
+            />
+          ) : (
+            <Alert
+              type="error" showIcon
+              message={`发现 ${result.mismatch} 条无法 round-trip 的码`}
+              description="这些码用 libdmtx 编码后再解码,得不到原字节。送厂打印后扫码机可能扫不出或扫错。请修复后再导出。"
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
+          {result.mismatchSamples.length > 0 && (
+            <Card size="small" title={`失败样例 (前 ${result.mismatchSamples.length} 条)`}>
+              <Table
+                size="small"
+                dataSource={result.mismatchSamples}
+                rowKey="row"
+                pagination={false}
+                columns={[
+                  { title: '行号', dataIndex: 'row', width: 80 },
+                  {
+                    title: '源码',
+                    dataIndex: 'source',
+                    ellipsis: true,
+                    render: (s: string) => (
+                      <Typography.Text code copyable={{ text: s }} style={{ fontSize: 11 }}>
+                        {s.length > 60 ? s.slice(0, 60) + '...' : s}
+                      </Typography.Text>
+                    ),
+                  },
+                  {
+                    title: '解码结果',
+                    dataIndex: 'decoded',
+                    ellipsis: true,
+                    render: (d: string | null) => (
+                      <Typography.Text code style={{ fontSize: 11, color: '#cf1322' }}>
+                        {d === '__NO_DECODE__' ? '(无法解码)' : d}
+                      </Typography.Text>
+                    ),
+                  },
+                ]}
+              />
+            </Card>
+          )}
+        </div>
+      )}
+
+      {phase === 'failed' && (
+        <Alert
+          type="error" showIcon
+          message="验证调用失败"
+          description={error || '未知错误'}
+        />
+      )}
+    </Modal>
   )
 }

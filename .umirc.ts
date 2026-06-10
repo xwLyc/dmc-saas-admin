@@ -87,6 +87,12 @@ export default defineConfig({
       icon: 'BarcodeOutlined',
     },
     {
+      path: '/dmc-recognize',
+      component: '@/pages/DmcRecognizeCompare',
+      name: 'DMC 识别对比',
+      icon: 'ScanOutlined',
+    },
+    {
       path: '/tenants/:id',
       component: '@/pages/TenantDetail',
       name: '工厂详情',

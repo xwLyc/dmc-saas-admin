@@ -10,10 +10,16 @@
  *
  * ─── 处理的文件形态 ─────────────────────────────────────────────
  *
- * **CSV / TXT**（`.csv` / `.txt`）：
- *   绕开 XLSX 解析，按行读整行原始文本。原因：俄罗斯 KM AI 21 serial 字符集 82
- *   允许 `,`，没引号包裹时 XLSX 会把一条码按逗号切成多列。
- *   TXT 走同一分支：约定每行一条 DMC 码，空行跳过。
+ * **CSV**（`.csv`）：
+ *   走 RFC 4180 解析(自己实现的小 state machine,不靠 XLSX/PapaParse):
+ *     - 字段含 `,` 或 `"` 时整段用 `"..."` 包,内部 `"` 转 `""`
+ *     - 读时:首尾 `"` 当包裹符去掉,`""` 还原成 `"`,字段内换行/逗号原样保留
+ *   俄罗斯 KM AI 21 serial 字符集允许 `,`/`"`,客户导出的 CSV 这两种字符都会带,
+ *   不解 RFC 4180 直接 split('\n') 会把 `"01...!""UAM91..."` 当成 81 字符的脏码,
+ *   完全跟实际码对不上(实测客户文件 3400+ 条带引号的全是这个情况)。
+ *
+ * **TXT**（`.txt`）：
+ *   纯文本,无 quote 语义。每行一条 DMC 码,空行跳过。
  *
  * **XLSX/XLS**：每行可能多列，按下面双形态规则归一成一条码：
  *   形态 1（客户内部 ERP 双列）：A=GTIN+serial 短码（无 crypto，~31 字符），
@@ -59,10 +65,17 @@ export async function parseSourceFile(
   options: ParseSourceOptions = {},
 ): Promise<string[]> {
   const { headerPattern, isValidKm } = options
-  const isLineBased = /\.(csv|txt)$/i.test(file.name)
+  const isCsv = /\.csv$/i.test(file.name)
+  const isTxt = /\.txt$/i.test(file.name)
 
   let codes: string[]
-  if (isLineBased) {
+  if (isCsv) {
+    const text = await file.text()
+    const rows = parseCsvRows(text)
+    codes = rows
+      .map((row) => pickCellFromRow(row, isValidKm))
+      .filter((c) => c.length > 0)
+  } else if (isTxt) {
     const text = await file.text()
     codes = text
       .split(/\r?\n/)
@@ -85,6 +98,54 @@ export async function parseSourceFile(
   }
 
   return codes
+}
+
+/**
+ * CSV 行解析(整行级 RFC 4180 判定 + 脏数据 raw split 兜底)。
+ *
+ * 不用通用 RFC 4180 state machine 的原因:工厂码源经常不规范,码本身可能含 `"`
+ * 但客户没 escape。state machine 看到中段的 `"` 就进 quote 模式吞错数据,实测一
+ * 行 78 字符的真码被吞掉首末两个 `"` 只剩 76,或者更糟一口气吞下几十行变成"巨码"。
+ *
+ * 这里走**整行级判定**:
+ *   - 行首末都是 `"` 且 `"` 总数为偶数 → 合法 RFC 4180 quoted line,去包 + `""` → `"`
+ *   - 否则 → raw 数据,按 `,` 切多列,所有 `"` 当字面保留
+ *
+ * 假设(对 DMC 码源都成立):
+ *   - 每行就是一条码(GS1 字符集不允许 \n,不存在跨行字段)
+ *   - 不需要「一行多个 quoted field」(这个场景在码源 CSV 里没出现过)
+ *
+ * 返回 string[][]:每行一个数组,quoted 行只有 1 列已 unescape,raw 行可能多列。
+ */
+function parseCsvRows(text: string): string[][] {
+  const lines = text.split(/\r?\n/)
+  const rows: string[][] = []
+  for (const line of lines) {
+    if (line.length === 0) continue
+    rows.push(parseCsvLine(line))
+  }
+  return rows
+}
+
+function parseCsvLine(line: string): string[] {
+  // RFC 4180 quoted-line 检测:首末都是 `"`,且 `"` 总数为偶数
+  if (
+    line.length >= 2 &&
+    line.charCodeAt(0) === 0x22 &&  // "
+    line.charCodeAt(line.length - 1) === 0x22
+  ) {
+    let quotes = 0
+    for (let i = 0; i < line.length; i++) {
+      if (line.charCodeAt(i) === 0x22) quotes++
+    }
+    if (quotes % 2 === 0) {
+      // 合法 quoted line:去包 + 内部 "" → "
+      return [line.slice(1, -1).replace(/""/g, '"')]
+    }
+  }
+  // 脏数据 / unquoted:按 raw `,` 切多列。`"` 当字面保留,由 pickCellFromRow 走
+  // form 2 (comma-join) 还原成原始码。
+  return line.split(',')
 }
 
 /**
