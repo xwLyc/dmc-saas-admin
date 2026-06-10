@@ -1,6 +1,6 @@
 {
   "name": "dmc-saas-admin",
-  "version": "0.0.39",
+  "version": "0.0.42",
   "private": true,
   "description": "DMC SaaS 后管 web — umi 4 + ant-design-pro",
   "scripts": {
@@ -17,6 +17,7 @@
     "@dmc/contracts": "file:../dmc-saas-contracts",
     "@umijs/max": "^4.4.0",
     "antd": "^5.22.2",
+    "bwip-js": "^4.11.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^3.8.1",

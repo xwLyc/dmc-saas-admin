@@ -16,11 +16,12 @@ import type { UploadProps } from 'antd'
 import {
   CloudUploadOutlined, CheckCircleOutlined, CloseCircleOutlined,
   LoadingOutlined, DownloadOutlined, ReloadOutlined, SaveOutlined,
-  RightOutlined, SafetyCertificateOutlined,
+  RightOutlined, SafetyCertificateOutlined, PrinterOutlined,
 } from '@ant-design/icons'
 import { Modal, Progress } from 'antd'
 import { parseDmcFile, exportSeqDmc, type ParsedDmcFile } from '@/lib/dmc/parseFile'
 import { verifyDmc, type VerifyMismatch } from '@/services/dmcVerify'
+import DmcPrintPreview from '@/components/DmcPrintPreview'
 import { analyzeDmcCodes } from '@/lib/dmc/validate'
 import { assignSeqs } from '@/lib/dmc/sequence'
 import {
@@ -485,6 +486,9 @@ function ConfigureView({
   const [verifyResult, setVerifyResult] = useState<{ ok: number; mismatch: number; mismatchSamples: VerifyMismatch[]; durationMs: number } | null>(null)
   const [verifyError, setVerifyError] = useState<string | null>(null)
 
+  // 打印预览模态
+  const [previewOpen, setPreviewOpen] = useState(false)
+
   const handleVerify = async () => {
     setVerifyOpen(true)
     setVerifyPhase('running')
@@ -591,6 +595,15 @@ function ConfigureView({
         title={`预览（显示前 ${previewSlice.length} 条，共 ${total} 条）`}
         extra={
           <Space>
+            <Tooltip title="渲染前 N 条 DMC 矩阵图,打印后用扫码枪手动扫几个,跟序号对应的源码核对一致即可发厂">
+              <Button
+                icon={<PrinterOutlined />}
+                onClick={() => setPreviewOpen(true)}
+                style={{ background: '#fffbe6', borderColor: '#faad14', color: '#d48806' }}
+              >
+                预览 / 扫码验证
+              </Button>
+            </Tooltip>
             <Tooltip title="对每条码做 encode→decode round-trip。通过 = 工厂打出来扫码机一定能扫回原码">
               <Button
                 icon={<SafetyCertificateOutlined />}
@@ -640,6 +653,12 @@ function ConfigureView({
         result={verifyResult}
         error={verifyError}
         onClose={() => setVerifyOpen(false)}
+      />
+
+      <DmcPrintPreview
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        codes={assigned}
       />
     </>
   )
