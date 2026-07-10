@@ -1,10 +1,10 @@
 {
   "name": "dmc-saas-admin",
-  "version": "0.0.42",
+  "version": "0.0.48",
   "private": true,
   "description": "DMC SaaS 后管 web — umi 4 + ant-design-pro",
   "scripts": {
-    "dev": "PORT=5174 max dev",
+    "dev": "PORT=6174 max dev",
     "build": "max build",
     "format": "prettier --cache --write \"src/**/*.{ts,tsx,less,css}\"",
     "postinstall": "max setup",

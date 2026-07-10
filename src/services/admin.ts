@@ -1,6 +1,6 @@
 /**
  * Admin API client —— 走 umi-max 内置 request(axios-style)。
- * baseURL '/api' 在 src/app.tsx 配,dev 时 vite proxy → backend :3001。
+ * baseURL '/dmc-api' 在 src/app.tsx 配,dev 走 umi proxy、prod 走 nginx 反代 → backend :3001。
  */
 
 import { request } from '@umijs/max'

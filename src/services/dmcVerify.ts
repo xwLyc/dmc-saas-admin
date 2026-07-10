@@ -10,7 +10,7 @@
 import { history } from '@umijs/max'
 import { getToken, clearTokens } from './token'
 
-const ENDPOINT = '/api/admin/dmc/verify'
+const ENDPOINT = '/dmc-api/admin/dmc/verify'
 
 export interface VerifyProgress {
   done: number

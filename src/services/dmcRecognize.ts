@@ -13,7 +13,7 @@ import { history } from '@umijs/max'
 import { DmcRecognizeResponse } from '@dmc/contracts'
 import { getToken, clearTokens } from './token'
 
-const ENDPOINT = '/api/admin/dmc/recognize'
+const ENDPOINT = '/dmc-api/admin/dmc/recognize'
 
 export interface RecognizeProgress {
   /** 已解码页数(从 1 开始) */

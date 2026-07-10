@@ -30,7 +30,7 @@ export async function getInitialState(): Promise<InitialState> {
 
 // ───── request 配置 ─────
 export const request: RequestConfig = {
-  baseURL: '/api',
+  baseURL: '/dmc-api',
   timeout: 15000,
   requestInterceptors: [
     (config: any) => {

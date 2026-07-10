@@ -3,15 +3,21 @@ import { defineConfig } from '@umijs/max'
 export default defineConfig({
   npmClient: 'npm',
 
-  // dev server port 用 PORT env var(在 package.json 的 dev script 设 PORT=5174)
-  // 跟桌面端 5173 错开,跟 backend CORS allow list 一致(backend allow 5173,5174)
+  // 生产部署在共用服务器子路径 /dmc-admin/ 下(host nginx),所以静态资源和
+  // 路由都要带 base;dev(base 默认 /)不受影响。API 走 /dmc-api/(nginx 反代
+  // 到 backend :3001),避免占用裸 /api 这种全局路径。
+  base: '/dmc-admin/',
+  publicPath: '/dmc-admin/',
 
-  // dev 时 /api/* 代理到 backend(避 CORS),prod 部署改后端 allow origin
+  // dev server port 用 PORT env var(在 package.json 的 dev script 设 PORT=6174)
+  // 跟桌面端 5173 错开
+
+  // dev 时 /dmc-api/* 代理到 backend(避 CORS),prod 由 nginx location /dmc-api/ 反代
   proxy: {
-    '/api': {
+    '/dmc-api': {
       target: 'http://localhost:3001',
       changeOrigin: true,
-      pathRewrite: { '^/api': '' },
+      pathRewrite: { '^/dmc-api': '' },
     },
   },
 
@@ -61,6 +67,8 @@ export default defineConfig({
 
   routes: [
     { path: '/login', layout: false, component: '@/pages/Login' },
+    // 免登录 DMC 工具(给公司内部人员):layout:false 不套后管框架,纯前端不发鉴权请求
+    { path: '/tool', layout: false, component: '@/pages/DmcTool' },
     { path: '/', redirect: '/dashboard' },
     {
       path: '/dashboard',
