@@ -28,6 +28,14 @@ import type {
   AdminUpdateTenantStatusRequest,
   CreateDmcBatchRequest,
   AdminDmcBatchRow,
+  CreateCustomerRequest,
+  UpdateCustomerRequest,
+  CustomerRow,
+  CustomerDetailResponse,
+  ListCustomersQuery,
+  ListCustomersResponse,
+  CheckDmcDuplicatesRequest,
+  CheckDmcDuplicatesResponse,
   AdminListDmcBatchesQuery,
   AdminListDmcBatchesResponse,
 } from '@dmc/contracts'
@@ -217,5 +225,70 @@ export async function listDmcBatches(
   return request<AdminListDmcBatchesResponse>('/admin/dmc-batches', {
     method: 'GET',
     params,
+  })
+}
+
+// ───── customers(俄罗斯客户 / 买家)─────
+//
+// ⚠ 别跟 tenants(中国工厂)混:Customer 是给码表的俄方,Tenant 是用码表的工厂。
+
+/** 客户列表(分页 + 名称/简称模糊搜) */
+export async function listCustomers(
+  params: ListCustomersQuery,
+): Promise<ListCustomersResponse> {
+  return request<ListCustomersResponse>('/admin/customers', {
+    method: 'GET',
+    params,
+  })
+}
+
+/** 客户 DMC 档案:基本信息 + 历史全部码表 */
+export async function getCustomerDetail(
+  id: string,
+): Promise<CustomerDetailResponse> {
+  return request<CustomerDetailResponse>(`/admin/customers/${encodeURIComponent(id)}`, {
+    method: 'GET',
+  })
+}
+
+export async function createCustomer(
+  body: CreateCustomerRequest,
+): Promise<CustomerRow> {
+  return request<CustomerRow>('/admin/customers', {
+    method: 'POST',
+    data: body,
+    skipErrorHandler: true,
+  })
+}
+
+export async function updateCustomer(
+  id: string,
+  body: UpdateCustomerRequest,
+): Promise<CustomerRow> {
+  return request<CustomerRow>(`/admin/customers/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    data: body,
+    skipErrorHandler: true,
+  })
+}
+
+export async function deleteCustomer(id: string): Promise<void> {
+  return request<void>(`/admin/customers/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    skipErrorHandler: true,
+  })
+}
+
+/**
+ * 码表查重预检(不落库)。
+ * 文件内重复 + 跟该客户历史码表的重复,分开报。
+ */
+export async function checkDmcDuplicates(
+  body: CheckDmcDuplicatesRequest,
+): Promise<CheckDmcDuplicatesResponse> {
+  return request<CheckDmcDuplicatesResponse>('/admin/dmc-batches/check-duplicates', {
+    method: 'POST',
+    data: body,
+    skipErrorHandler: true,
   })
 }

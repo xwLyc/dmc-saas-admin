@@ -89,6 +89,13 @@ export default defineConfig({
       icon: 'DollarOutlined',
     },
     {
+      // 俄罗斯客户(买家/进口商)——给 DMC 码表的一方,别跟「工厂管理」混
+      path: '/customers',
+      component: '@/pages/Customers',
+      name: '俄罗斯客户',
+      icon: 'GlobalOutlined',
+    },
+    {
       path: '/dmc-batches',
       component: '@/pages/DmcBatches',
       name: 'DMC 序号生成',
@@ -104,6 +111,12 @@ export default defineConfig({
       path: '/tenants/:id',
       component: '@/pages/TenantDetail',
       name: '工厂详情',
+      hideInMenu: true,
+    },
+    {
+      path: '/customers/:id',
+      component: '@/pages/CustomerDetail',
+      name: '客户 DMC 档案',
       hideInMenu: true,
     },
     {
