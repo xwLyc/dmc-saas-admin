@@ -36,6 +36,7 @@ import type {
   ListCustomersResponse,
   CheckDmcDuplicatesRequest,
   CheckDmcDuplicatesResponse,
+  AssignTenantRequest,
   AdminListDmcBatchesQuery,
   AdminListDmcBatchesResponse,
 } from '@dmc/contracts'
@@ -291,4 +292,15 @@ export async function checkDmcDuplicates(
     data: body,
     skipErrorHandler: true,
   })
+}
+
+/** 给客户档案里未分配工厂的码表分配工厂 */
+export async function assignBatchTenant(
+  batchId: string,
+  body: AssignTenantRequest,
+): Promise<AdminDmcBatchRow> {
+  return request<AdminDmcBatchRow>(
+    `/admin/dmc-batches/${encodeURIComponent(batchId)}/assign-tenant`,
+    { method: 'POST', data: body, skipErrorHandler: true },
+  )
 }

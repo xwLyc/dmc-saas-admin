@@ -21,10 +21,12 @@ import {
   Typography,
   message,
 } from 'antd'
-import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
 import type { CustomerBatchRow, CustomerDetailResponse } from '@dmc/contracts'
 import { deleteCustomer, getCustomerDetail } from '@/services/admin'
 import { getErrorMessage } from '@/lib/errorMsg'
+import UploadBatchToCustomerModal from './dmc/UploadBatchToCustomerModal'
+import AssignTenantButton from './dmc/AssignTenantButton'
 
 const BATCH_STATUS_META: Record<'available' | 'used', { text: string; color: string }> = {
   available: { text: '可用', color: 'green' },
@@ -35,6 +37,7 @@ export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [data, setData] = useState<CustomerDetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [uploadOpen, setUploadOpen] = useState(false)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -73,7 +76,12 @@ export default function CustomerDetailPage() {
       title: '发给工厂',
       dataIndex: 'tenantName',
       ellipsis: true,
-      render: (_, r) => r.tenantName ?? <Typography.Text type="secondary">—</Typography.Text>,
+      render: (_, r) =>
+        r.tenantName ?? (
+          <Tag color="orange" style={{ margin: 0 }}>
+            未分配
+          </Tag>
+        ),
     },
     {
       title: '状态',
@@ -89,6 +97,17 @@ export default function CustomerDetailPage() {
       dataIndex: 'createdAt',
       width: 170,
       render: (_, r) => new Date(r.createdAt).toLocaleString('zh-CN'),
+    },
+    {
+      title: '操作',
+      width: 110,
+      // 只有还没分配工厂的码表能分配;已分配的这里不再显示(改派是另一回事,先不做)
+      render: (_, r) =>
+        r.tenantId ? (
+          <Typography.Text type="secondary">—</Typography.Text>
+        ) : (
+          <AssignTenantButton batchId={r.id} onAssigned={() => void load()} />
+        ),
     },
   ]
 
@@ -162,6 +181,16 @@ export default function CustomerDetailPage() {
         search={false}
         pagination={{ pageSize: 20, hideOnSinglePage: true }}
         options={false}
+        toolBarRender={() => [
+          <Button
+            key="upload"
+            type="primary"
+            icon={<UploadOutlined />}
+            onClick={() => setUploadOpen(true)}
+          >
+            上传码表
+          </Button>,
+        ]}
         tableExtraRender={() => (
           <Typography.Paragraph type="secondary" style={{ margin: '0 0 8px' }}>
             以下码表就是该客户的查重基准 —— 新上传的码表会跟这里全部
@@ -170,9 +199,17 @@ export default function CustomerDetailPage() {
         )}
         locale={{
           emptyText: (
-            <Empty description="该客户还没有码表。上传码表时选中这家客户即可建立档案" />
+            <Empty description="该客户还没有码表。点右上角「上传码表」建立档案" />
           ),
         }}
+      />
+
+      <UploadBatchToCustomerModal
+        open={uploadOpen}
+        customerId={data.id}
+        customerName={data.name}
+        onClose={() => setUploadOpen(false)}
+        onUploaded={() => void load()}
       />
     </Space>
   )
