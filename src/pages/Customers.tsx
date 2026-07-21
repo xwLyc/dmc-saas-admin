@@ -162,6 +162,8 @@ export default function CustomersPage() {
       actionRef={actionRef}
       columns={columns}
       rowKey="id"
+      // 跟工厂管理等页一致:定 min-width,窄屏横向滚动、宽屏由无宽度的「客户名称」列撑满
+      scroll={{ x: 1000 }}
       search={{ labelWidth: 'auto' }}
       toolBarRender={() => [<CustomerFormModal key="create" onSuccess={reload} />]}
       request={async (params) => {

@@ -23,7 +23,7 @@ import {
 } from 'antd'
 import { ArrowLeftOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
 import type { CustomerBatchRow, CustomerDetailResponse } from '@dmc/contracts'
-import { deleteCustomer, getCustomerDetail } from '@/services/admin'
+import { deleteCustomer, deleteDmcBatch, getCustomerDetail } from '@/services/admin'
 import { getErrorMessage } from '@/lib/errorMsg'
 import UploadBatchToCustomerModal from './dmc/UploadBatchToCustomerModal'
 import AssignTenantButton from './dmc/AssignTenantButton'
@@ -100,14 +100,43 @@ export default function CustomerDetailPage() {
     },
     {
       title: '操作',
-      width: 110,
-      // 只有还没分配工厂的码表能分配;已分配的这里不再显示(改派是另一回事,先不做)
-      render: (_, r) =>
-        r.tenantId ? (
-          <Typography.Text type="secondary">—</Typography.Text>
-        ) : (
-          <AssignTenantButton batchId={r.id} onAssigned={() => void load()} />
-        ),
+      width: 150,
+      render: (_, r) => (
+        <Space size="middle">
+          {/* 只有还没分配工厂的码表能分配;已分配的不显示(改派是另一回事,先不做) */}
+          {!r.tenantId && (
+            <AssignTenantButton batchId={r.id} onAssigned={() => void load()} />
+          )}
+          <Popconfirm
+            title="删除这张码表？"
+            description={
+              <div style={{ maxWidth: 300 }}>
+                将删除「{r.name}」的全部 {r.total.toLocaleString()} 条码，不可恢复。
+                {r.status === 'used' && (
+                  <div style={{ color: '#cf1322', marginTop: 6 }}>
+                    ⚠ 该码表已被工厂使用，这些码可能已印在产品上。删除后查重将不再
+                    覆盖它们，若客户重发同样的码将无法发现。请确认无误。
+                  </div>
+                )}
+              </div>
+            }
+            okText="删除"
+            okButtonProps={{ danger: true }}
+            cancelText="取消"
+            onConfirm={async () => {
+              try {
+                await deleteDmcBatch(r.id)
+                message.success('已删除')
+                void load()
+              } catch (err) {
+                message.error(getErrorMessage(err, '删除失败'))
+              }
+            }}
+          >
+            <a style={{ color: '#cf1322' }}>删除</a>
+          </Popconfirm>
+        </Space>
+      ),
     },
   ]
 
@@ -179,6 +208,8 @@ export default function CustomerDetailPage() {
         rowKey="id"
         dataSource={data.batches}
         search={false}
+        // 定 min-width,窄屏横向滚动、宽屏由无宽度的「码表名称/文件名」列撑满
+        scroll={{ x: 1100 }}
         pagination={{ pageSize: 20, hideOnSinglePage: true }}
         options={false}
         toolBarRender={() => [

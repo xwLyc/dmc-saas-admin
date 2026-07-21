@@ -304,3 +304,11 @@ export async function assignBatchTenant(
     { method: 'POST', data: body, skipErrorHandler: true },
   )
 }
+
+/** 删除码表(级联删除其全部码) */
+export async function deleteDmcBatch(batchId: string): Promise<void> {
+  return request<void>(`/admin/dmc-batches/${encodeURIComponent(batchId)}`, {
+    method: 'DELETE',
+    skipErrorHandler: true,
+  })
+}
