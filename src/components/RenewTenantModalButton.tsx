@@ -38,7 +38,11 @@ export default function RenewTenantModalButton({
   const handleFinish = async (values: AdminRenewTenantRequest): Promise<boolean> => {
     try {
       const updated = await renewTenant(tenantId, values)
-      message.success(`已为「${tenantName}」续期 ${values.plan === 'yearly' ? '365' : '30'} 天`)
+      const msg =
+        values.plan === 'lifetime'
+          ? `已将「${tenantName}」设为永久有效`
+          : `已为「${tenantName}」续期 ${values.plan === 'yearly' ? '365' : '30'} 天`
+      message.success(msg)
       onSuccess?.(updated)
       return true
     } catch (err) {
@@ -70,6 +74,7 @@ export default function RenewTenantModalButton({
         options={[
           { label: '月度 (+30天) ¥19.9', value: 'monthly' },
           { label: '年度 (+365天) ¥118.8', value: 'yearly' },
+          { label: '永久有效（免费授予）', value: 'lifetime' },
         ]}
       />
       <ProFormTextArea
