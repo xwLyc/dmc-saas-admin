@@ -51,6 +51,14 @@ const REFUND_STATUS_META: Record<'pending' | 'succeeded' | 'failed', { text: str
   failed: { text: '失败', color: 'red' },
 }
 
+const FALLBACK_META = { text: '—', color: 'default' }
+
+/** 后端可能返回未知/为空的枚举值(如待支付订单 channel 为 null),兜底避免整页崩溃 */
+const metaOf = <K extends string>(
+  map: Record<K, { text: string; color: string }>,
+  key: K | null | undefined,
+) => (key != null && map[key]) || FALLBACK_META
+
 const yuan = (fen: number) => `¥ ${(fen / 100).toFixed(2)}`
 
 export default function OrdersPage() {
@@ -103,7 +111,7 @@ export default function OrdersPage() {
       dataIndex: 'plan',
       width: 90,
       search: false,
-      render: (_, row) => <Tag color={PLAN_META[row.plan].color}>{PLAN_META[row.plan].text}</Tag>,
+      render: (_, row) => { const m = metaOf(PLAN_META, row.plan); return <Tag color={m.color}>{m.text}</Tag> },
     },
     {
       title: '金额',
@@ -125,7 +133,7 @@ export default function OrdersPage() {
       valueEnum: Object.fromEntries(
         Object.entries(STATUS_META).map(([k, v]) => [k, { text: v.text }]),
       ),
-      render: (_, row) => <Tag color={STATUS_META[row.status].color}>{STATUS_META[row.status].text}</Tag>,
+      render: (_, row) => { const m = metaOf(STATUS_META, row.status); return <Tag color={m.color}>{m.text}</Tag> },
     },
     {
       title: '渠道',
@@ -135,7 +143,7 @@ export default function OrdersPage() {
       valueEnum: Object.fromEntries(
         Object.entries(CHANNEL_META).map(([k, v]) => [k, { text: v.text }]),
       ),
-      render: (_, row) => <Tag color={CHANNEL_META[row.channel].color}>{CHANNEL_META[row.channel].text}</Tag>,
+      render: (_, row) => { const m = metaOf(CHANNEL_META, row.channel); return <Tag color={m.color}>{m.text}</Tag> },
     },
     {
       title: '创建时间',
@@ -215,10 +223,10 @@ export default function OrdersPage() {
                 { title: '订单号', dataIndex: 'id', span: 2, copyable: true },
                 { title: '工厂', dataIndex: 'tenantName' },
                 { title: '联系电话', dataIndex: 'tenantContactPhone', copyable: true },
-                { title: '套餐', dataIndex: 'plan', render: (_, row) => PLAN_META[row.plan].text },
+                { title: '套餐', dataIndex: 'plan', render: (_, row) => metaOf(PLAN_META, row.plan).text },
                 { title: '金额', dataIndex: 'amountFen', render: (_, row) => yuan(row.amountFen) },
-                { title: '状态', dataIndex: 'status', render: (_, row) => <Tag color={STATUS_META[row.status].color}>{STATUS_META[row.status].text}</Tag> },
-                { title: '渠道', dataIndex: 'channel', render: (_, row) => CHANNEL_META[row.channel].text },
+                { title: '状态', dataIndex: 'status', render: (_, row) => { const m = metaOf(STATUS_META, row.status); return <Tag color={m.color}>{m.text}</Tag> } },
+                { title: '渠道', dataIndex: 'channel', render: (_, row) => metaOf(CHANNEL_META, row.channel).text },
                 { title: '微信流水号', dataIndex: 'transactionId', render: (v) => v ? <Typography.Text code>{v as string}</Typography.Text> : '—', span: 2 },
                 { title: '创建时间', dataIndex: 'createdAt', valueType: 'dateTime' },
                 { title: '支付时间', dataIndex: 'paidAt', valueType: 'dateTime', render: (v) => v ? (v as string) : '—' },
@@ -247,7 +255,7 @@ export default function OrdersPage() {
                 {detail.refunds.map((r) => (
                   <div key={r.id} style={{ padding: 12, background: '#fef9e7', borderRadius: 6, marginBottom: 8 }}>
                     <div style={{ fontSize: 12, marginBottom: 4 }}>
-                      <Tag color={REFUND_STATUS_META[r.status].color}>{REFUND_STATUS_META[r.status].text}</Tag>
+                      {(() => { const m = metaOf(REFUND_STATUS_META, r.status); return <Tag color={m.color}>{m.text}</Tag> })()}
                       {yuan(r.amountFen)}
                       {' · '}{new Date(r.createdAt).toLocaleString('zh-CN', { hour12: false })}
                     </div>
