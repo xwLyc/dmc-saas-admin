@@ -26,14 +26,16 @@ import {
 } from 'antd'
 import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons'
 import type {
+  AdminOrderRow,
   AdminSubscriptionRow,
   AdminSubscriptionSource,
   AdminTenantDetail,
+  OrderStatus,
   PlanId,
   TenantId,
   TenantStatus,
 } from '@dmc/contracts'
-import { getTenantDetail, listSubscriptions, updateTenantStatus } from '@/services/admin'
+import { getTenantDetail, listOrders, listSubscriptions, updateTenantStatus } from '@/services/admin'
 import { getErrorMessage } from '@/lib/errorMsg'
 import RenewTenantModalButton from '@/components/RenewTenantModalButton'
 
@@ -180,22 +182,40 @@ export default function TenantDetailPage() {
         ]}
       />
 
-      {/* ─── 订阅历史子表(本工厂的所有订单) ─── */}
+      {/* ─── 订阅历史子表 ─── */}
       <div style={{ marginTop: 24 }}>
         <SubscriptionHistory tenantId={detail.id} />
+      </div>
+
+      {/* ─── 支付订单子表(订单号 / 微信流水号 / 金额 / 状态)─── */}
+      <div style={{ marginTop: 24 }}>
+        <OrderHistory tenantId={detail.id} />
       </div>
     </Card>
   )
 }
 
-const PLAN_META: Record<PlanId, { text: string; color: string }> = {
+type TagMeta = { text: string; color: string }
+/** 查不到就 fallback(别因为 contracts 加了新枚举值就整页崩)*/
+const metaOf = (map: Record<string, TagMeta>, key: string): TagMeta => map[key] ?? { text: key, color: 'default' }
+
+const PLAN_META: Record<PlanId, TagMeta> = {
   monthly: { text: '月度', color: 'blue' },
   yearly: { text: '年度', color: 'gold' },
+  lifetime: { text: '永久', color: 'purple' },
 }
 
-const SOURCE_META: Record<AdminSubscriptionSource, { text: string; color: string }> = {
+const SOURCE_META: Record<AdminSubscriptionSource, TagMeta> = {
   self: { text: '自助订阅', color: 'default' },
   referred: { text: '被推荐', color: 'cyan' },
+}
+
+const ORDER_STATUS_META: Record<OrderStatus, TagMeta> = {
+  pending: { text: '待支付', color: 'orange' },
+  paid: { text: '已支付', color: 'green' },
+  expired: { text: '已过期', color: 'default' },
+  cancelled: { text: '已取消', color: 'default' },
+  refunded: { text: '已退款', color: 'red' },
 }
 
 const SUB_COLUMNS: ProColumns<AdminSubscriptionRow>[] = [
@@ -204,7 +224,7 @@ const SUB_COLUMNS: ProColumns<AdminSubscriptionRow>[] = [
     dataIndex: 'plan',
     width: 90,
     render: (_, row) => {
-      const m = PLAN_META[row.plan]
+      const m = metaOf(PLAN_META, row.plan)
       return <Tag color={m.color}>{m.text}</Tag>
     },
   },
@@ -224,7 +244,7 @@ const SUB_COLUMNS: ProColumns<AdminSubscriptionRow>[] = [
     dataIndex: 'source',
     width: 100,
     render: (_, row) => {
-      const m = SOURCE_META[row.source]
+      const m = metaOf(SOURCE_META, row.source)
       return <Tag color={m.color}>{m.text}</Tag>
     },
   },
@@ -241,6 +261,85 @@ const SUB_COLUMNS: ProColumns<AdminSubscriptionRow>[] = [
     width: 170,
   },
 ]
+
+const ORDER_COLUMNS: ProColumns<AdminOrderRow>[] = [
+  {
+    title: '订单号',
+    dataIndex: 'id',
+    width: 130,
+    render: (_, row) => (
+      <Typography.Text copyable={{ text: row.id }} style={{ fontSize: 12 }}>
+        {row.id.slice(0, 8)}…
+      </Typography.Text>
+    ),
+  },
+  {
+    title: '套餐',
+    dataIndex: 'plan',
+    width: 80,
+    render: (_, row) => {
+      const m = metaOf(PLAN_META, row.plan)
+      return <Tag color={m.color}>{m.text}</Tag>
+    },
+  },
+  {
+    title: '金额',
+    dataIndex: 'amountFen',
+    width: 100,
+    align: 'right',
+    render: (_, row) => (
+      <Typography.Text strong style={{ color: '#047857' }}>
+        ¥ {(row.amountFen / 100).toFixed(2)}
+      </Typography.Text>
+    ),
+  },
+  {
+    title: '状态',
+    dataIndex: 'status',
+    width: 90,
+    render: (_, row) => {
+      const m = metaOf(ORDER_STATUS_META, row.status)
+      return <Tag color={m.color}>{m.text}</Tag>
+    },
+  },
+  {
+    title: '微信流水号',
+    dataIndex: 'transactionId',
+    width: 230,
+    render: (_, row) =>
+      row.transactionId ? (
+        <Typography.Text copyable style={{ fontSize: 12 }}>
+          {row.transactionId}
+        </Typography.Text>
+      ) : (
+        '—'
+      ),
+  },
+  { title: '支付时间', dataIndex: 'paidAt', valueType: 'dateTime', width: 160 },
+  { title: '创建时间', dataIndex: 'createdAt', valueType: 'dateTime', width: 160 },
+]
+
+/** 工厂详情页底部:本工厂支付订单子表(订单号 / 微信流水号 / 金额 / 状态) */
+function OrderHistory({ tenantId }: { tenantId: TenantId }) {
+  return (
+    <ProTable<AdminOrderRow>
+      headerTitle="支付订单"
+      columns={ORDER_COLUMNS}
+      rowKey="id"
+      search={false}
+      pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `共 ${total} 笔` }}
+      options={{ density: false, fullScreen: false, reload: true, setting: false }}
+      request={async (params) => {
+        const resp = await listOrders({
+          tenantId,
+          page: params.current ?? 1,
+          pageSize: params.pageSize ?? 10,
+        })
+        return { data: resp.items, total: resp.total, success: true }
+      }}
+    />
+  )
+}
 
 /** 工厂详情页底部:本工厂订阅历史子表(只读,不带搜索栏) */
 function SubscriptionHistory({ tenantId }: { tenantId: TenantId }) {
