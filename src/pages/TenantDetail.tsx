@@ -264,16 +264,6 @@ const SUB_COLUMNS: ProColumns<AdminSubscriptionRow>[] = [
 
 const ORDER_COLUMNS: ProColumns<AdminOrderRow>[] = [
   {
-    title: '订单号',
-    dataIndex: 'id',
-    width: 130,
-    render: (_, row) => (
-      <Typography.Text copyable={{ text: row.id }} style={{ fontSize: 12 }}>
-        {row.id.slice(0, 8)}…
-      </Typography.Text>
-    ),
-  },
-  {
     title: '套餐',
     dataIndex: 'plan',
     width: 80,
@@ -303,9 +293,19 @@ const ORDER_COLUMNS: ProColumns<AdminOrderRow>[] = [
     },
   },
   {
-    title: '微信流水号',
+    title: '商户单号',
+    dataIndex: 'outTradeNo',
+    width: 250,
+    render: (_, row) => (
+      <Typography.Text copyable style={{ fontSize: 12 }}>
+        {row.outTradeNo}
+      </Typography.Text>
+    ),
+  },
+  {
+    title: '交易单号',
     dataIndex: 'transactionId',
-    width: 230,
+    width: 250,
     render: (_, row) =>
       row.transactionId ? (
         <Typography.Text copyable style={{ fontSize: 12 }}>
