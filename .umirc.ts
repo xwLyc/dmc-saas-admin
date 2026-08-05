@@ -32,6 +32,9 @@ export default defineConfig({
     locale: false,
   },
 
+  // 浏览器标签页图标(public/favicon.svg)
+  favicons: ['/favicon.svg'],
+
   // 在 <head> 最早 inject 一段 inline script,patch console.warn/error 静默
   // 已知的 antd / rc-* / React 18 deprecated warning。
   // - findDOMNode is deprecated (rc-resize-observer / rc-tooltip 内部)
