@@ -1,6 +1,6 @@
 {
   "name": "dmc-saas-admin",
-  "version": "0.0.56",
+  "version": "0.0.57",
   "private": true,
   "description": "DMC SaaS 后管 web — umi 4 + ant-design-pro",
   "scripts": {
@@ -14,7 +14,7 @@
   "dependencies": {
     "@ant-design/icons": "^5.5.1",
     "@ant-design/pro-components": "^2.8.6",
-    "@dmc/contracts": "file:../dmc-saas-contracts",
+    "@dmc/contracts": "github:xwLyc/dmc-saas-contracts#v0.22.0",
     "@umijs/max": "^4.4.0",
     "antd": "^5.22.2",
     "bwip-js": "^4.11.1",

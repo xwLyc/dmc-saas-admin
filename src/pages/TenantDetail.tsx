@@ -262,7 +262,33 @@ const SUB_COLUMNS: ProColumns<AdminSubscriptionRow>[] = [
   },
 ]
 
+// 列顺序:商户单号(固定左)→ 支付单号 → 套餐 → 金额 → 状态 → 支付时间 → 创建时间(固定右)。
+// 中间列超宽时横向滚动,首尾两个单号列 sticky 便于对账复制。
 const ORDER_COLUMNS: ProColumns<AdminOrderRow>[] = [
+  {
+    title: '商户单号',
+    dataIndex: 'outTradeNo',
+    width: 250,
+    fixed: 'left',
+    render: (_, row) => (
+      <Typography.Text copyable style={{ fontSize: 12 }}>
+        {row.outTradeNo}
+      </Typography.Text>
+    ),
+  },
+  {
+    title: '支付单号',
+    dataIndex: 'transactionId',
+    width: 250,
+    render: (_, row) =>
+      row.transactionId ? (
+        <Typography.Text copyable style={{ fontSize: 12 }}>
+          {row.transactionId}
+        </Typography.Text>
+      ) : (
+        '—'
+      ),
+  },
   {
     title: '套餐',
     dataIndex: 'plan',
@@ -275,7 +301,7 @@ const ORDER_COLUMNS: ProColumns<AdminOrderRow>[] = [
   {
     title: '金额',
     dataIndex: 'amountFen',
-    width: 100,
+    width: 110,
     align: 'right',
     render: (_, row) => (
       <Typography.Text strong style={{ color: '#047857' }}>
@@ -292,34 +318,11 @@ const ORDER_COLUMNS: ProColumns<AdminOrderRow>[] = [
       return <Tag color={m.color}>{m.text}</Tag>
     },
   },
-  {
-    title: '商户单号',
-    dataIndex: 'outTradeNo',
-    width: 250,
-    render: (_, row) => (
-      <Typography.Text copyable style={{ fontSize: 12 }}>
-        {row.outTradeNo}
-      </Typography.Text>
-    ),
-  },
-  {
-    title: '交易单号',
-    dataIndex: 'transactionId',
-    width: 250,
-    render: (_, row) =>
-      row.transactionId ? (
-        <Typography.Text copyable style={{ fontSize: 12 }}>
-          {row.transactionId}
-        </Typography.Text>
-      ) : (
-        '—'
-      ),
-  },
-  { title: '支付时间', dataIndex: 'paidAt', valueType: 'dateTime', width: 160 },
-  { title: '创建时间', dataIndex: 'createdAt', valueType: 'dateTime', width: 160 },
+  { title: '支付时间', dataIndex: 'paidAt', valueType: 'dateTime', width: 170 },
+  { title: '创建时间', dataIndex: 'createdAt', valueType: 'dateTime', width: 170, fixed: 'right' },
 ]
 
-/** 工厂详情页底部:本工厂支付订单子表(订单号 / 微信流水号 / 金额 / 状态) */
+/** 工厂详情页底部:本工厂支付订单子表(商户单号 / 支付单号 / 金额 / 状态) */
 function OrderHistory({ tenantId }: { tenantId: TenantId }) {
   return (
     <ProTable<AdminOrderRow>
@@ -327,6 +330,8 @@ function OrderHistory({ tenantId }: { tenantId: TenantId }) {
       columns={ORDER_COLUMNS}
       rowKey="id"
       search={false}
+      // 固定左右列需要设 scroll.x(≥ 列宽合计),中间列超出即横向滚动
+      scroll={{ x: 1130 }}
       pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `共 ${total} 笔` }}
       options={{ density: false, fullScreen: false, reload: true, setting: false }}
       request={async (params) => {
