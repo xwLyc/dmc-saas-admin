@@ -70,6 +70,10 @@ export default function UploadBatchToCustomerModal({
       setStage('checking')
       const p = await parseDmcFile(file)
       setParsed(p)
+      // 带序号列的文件 → 用首行序号预填,别从 ADU000001 重编(详见 DmcBatches.handleFile)
+      const effectiveStartSeq = p.importedStartSeq ?? startSeq
+      if (p.importedStartSeq) setStartSeq(p.importedStartSeq)
+
       const result = analyzeDmcCodes(p.codes.map((code) => ({ code })))
       setAnalysis(result)
       if (!result.passed) {
@@ -79,7 +83,8 @@ export default function UploadBatchToCustomerModal({
       setBatchName(file.name.replace(/\.(csv|txt|xlsx|xls)$/i, ''))
 
       // 查重:跟该客户历史所有码表比对(文件内 + 跨批次)
-      const seqPreview = assignSeqs(result.uniqueCodes, startSeq)
+      // 用局部变量,setStartSeq 异步,读 state 会拿到旧序号
+      const seqPreview = assignSeqs(result.uniqueCodes, effectiveStartSeq)
       const d = await checkDmcDuplicates({
         customerId: customerId as CustomerId,
         codes: seqPreview.map((a) => ({ seq: a.seq, dmc: a.dmc })),

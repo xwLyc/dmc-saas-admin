@@ -39,6 +39,8 @@ export default function DmcToolPage() {
       setPhase('analyzing')
       const p = await parseDmcFile(file)
       setParsed(p)
+      // 带序号列的文件 → 用首行序号预填,别从 ADU000001 重编(详见 DmcBatches.handleFile)
+      if (p.importedStartSeq) setStartSeq(p.importedStartSeq)
       const result = analyzeDmcCodes(p.codes.map((code) => ({ code })))
       setAnalysis(result)
       setPhase(result.passed ? 'configure' : 'failed')

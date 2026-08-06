@@ -14,21 +14,46 @@
  */
 
 import * as XLSX from 'xlsx'
-import { parseSourceFile } from './parseSourceFile'
+import { parseSourceFile, parseSeqDmcFile } from './parseSourceFile'
 import { rawToGs1Segments } from './gs1Parse'
 
 export interface ParsedDmcFile {
   total: number
   codes: string[]
   filename: string
+  /** 从 dual 格式(seq+DMC)文件里识别出的首行 seq。single-column 文件为 undefined。
+   *  DmcBatches 用这个自动预填"起始序号"输入框。 */
+  importedStartSeq?: string
 }
 
 export async function parseDmcFile(file: File): Promise<ParsedDmcFile> {
+  // ─── Step 1: 尝试 dual 格式(seq + DMC)───
+  // 前 5 行都符合「短seq分隔长DMC」才认定,不是就退回 whole-line。
+  // 覆盖场景:admin 自己导出的 CSV/XLSX 回传;客户带序号列的码单;标签厂 Tab 分隔 TXT。
+  const dual = await parseSeqDmcFile(file)
+  if (dual && dual.codes.length > 0) {
+    return {
+      total: dual.codes.length,
+      codes: dual.codes,
+      filename: file.name,
+      importedStartSeq: dual.importedStartSeq,
+    }
+  }
+
+  // ─── Step 2: 单列 whole-line 解析(客户裸 DMC 码源的常见格式)───
   const codes = await parseSourceFile(file, {
-    // 表头匹配:首行单格是这些关键字时跳过
+    // 表头匹配:首行单格是这些关键字时剔除
     headerPattern: /^(code|码|条码|DMC|DMC码|barcode|raw|rawImport)$/i,
-    // 多列形态 1.5 判别:这个 cell 自身是合法 GS1 → 优先
-    isValidKm: (s) => rawToGs1Segments(s) !== null,
+    // XLSX 多列形态 1.5 判别:cell 自身得是"完整 KM"(01 GTIN + 91/93 签名段都齐)。
+    // 客户 ERP 导出的 xlsx-from-csv 场景仍走 form 2 (comma-join) 还原。
+    // CSV 路径已不 split `,`,不再走 form 1.5,此 option 只影响 XLSX。
+    isValidKm: (s) => {
+      const segs = rawToGs1Segments(s)
+      if (!segs) return false
+      const hasGtin = segs.some((seg) => seg.ai === '01')
+      const hasSignature = segs.some((seg) => seg.ai === '91' || seg.ai === '93')
+      return hasGtin && hasSignature
+    },
   })
 
   if (codes.length === 0) {

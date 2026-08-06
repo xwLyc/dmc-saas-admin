@@ -11,12 +11,14 @@
  * ─── 处理的文件形态 ─────────────────────────────────────────────
  *
  * **CSV**（`.csv`）：
- *   走 RFC 4180 解析(自己实现的小 state machine,不靠 XLSX/PapaParse):
- *     - 字段含 `,` 或 `"` 时整段用 `"..."` 包,内部 `"` 转 `""`
- *     - 读时:首尾 `"` 当包裹符去掉,`""` 还原成 `"`,字段内换行/逗号原样保留
- *   俄罗斯 KM AI 21 serial 字符集允许 `,`/`"`,客户导出的 CSV 这两种字符都会带,
- *   不解 RFC 4180 直接 split('\n') 会把 `"01...!""UAM91..."` 当成 81 字符的脏码,
- *   完全跟实际码对不上(实测客户文件 3400+ 条带引号的全是这个情况)。
+ *   **业务前提**:DMC 码源每行 = 一条码。GS1 AI 21 字符集允许 `,` `"`,所以我们**不
+ *   split `,`** —— 整行(除去可能的 RFC 4180 quote 包裹)就是码。走 `,` split 会踩
+ *   一堆 form 1.5 半截误判、多列 comma-join 边界之类的坑(实测 3 个客户文件全踩过)。
+ *   处理规则:
+ *     - 行首末都是 `"` 且 `"` 总数偶数 → 合法 RFC 4180 quoted line,去包 + `""` → `"`
+ *     - 否则 → 整行原样(码含 `,` `"` 都保留)
+ *   长度是否一致 / 是否合法 GS1 交给下游 analyzeDmcCodes 校验,parser 只负责"把每行
+ *   完整还原成一条字符串"这一件事。
  *
  * **TXT**（`.txt`）：
  *   纯文本,无 quote 语义。每行一条 DMC 码,空行跳过。
@@ -33,6 +35,134 @@
  */
 
 import * as XLSX from 'xlsx'
+
+// ─── 双列 seq+DMC 格式识别 ────────────────────────────────────────────
+//
+// 场景:客户/自己给回一个已带序号的文件(`ADU00001,0104...` 或 `ADU00001\t0104...`),
+// 或者 admin 之前的 CSV/XLSX 导出被回传。要么切掉 seq 列取 DMC,要么用 whole-line
+// 把 `seq,DMC` 当一整条码存进去 → GS1 校验必挂。
+//
+// 判定策略:前 5 行抽样,每行都得符合 `短seq分隔长DMC(≥30字符)`,才认定 dual 格式。
+// 分隔符支持 `,` 和 `\t`(标签厂 TXT 常用 Tab)。
+// 抽样保守,不冒险 —— 一旦某行不符合就退回 whole-line。
+
+/** dual 格式解析结果。importedStartSeq 用来给 DmcBatches 的起始序号 UI 预填。 */
+export interface SeqDmcParseResult {
+  codes: string[]
+  importedStartSeq: string
+}
+
+const SEQ_DMC_PROBE_ROWS = 5
+
+/** 尝试把文件按「seq + DMC 两列」解析。不像的话返回 null,调用方走 whole-line。 */
+export async function parseSeqDmcFile(file: File): Promise<SeqDmcParseResult | null> {
+  const isLineBased = /\.(csv|txt)$/i.test(file.name)
+
+  // ─── CSV / TXT 分支 ───
+  if (isLineBased) {
+    let text = await file.text()
+    if (text.length > 0 && text.charCodeAt(0) === 0xfeff) text = text.slice(1)
+
+    const lines = text
+      .split(/\r\n|\r|\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0)
+    if (lines.length === 0) return null
+
+    // 抽样探测:前 N 行全都得符合 dual 才认定
+    const probeCount = Math.min(SEQ_DMC_PROBE_ROWS, lines.length)
+    for (let i = 0; i < probeCount; i++) {
+      const p = splitFirstSep(lines[i])
+      if (!p) return null
+      const dmc = unquoteCsvField(p.after)
+      if (!isLikelySeq(p.before) || dmc.length < 30) return null
+    }
+
+    const importedStartSeq = splitFirstSep(lines[0])!.before
+    const codes: string[] = []
+    for (const line of lines) {
+      const p = splitFirstSep(line)
+      // 中途某行切不出来 -> 把整行放进去,让下游 length_check 单独标异常,不影响整批
+      codes.push(p ? unquoteCsvField(p.after) : line)
+    }
+    return { codes, importedStartSeq }
+  }
+
+  // ─── XLSX 分支 ───
+  const data = await file.arrayBuffer()
+  const wb = XLSX.read(data)
+  const ws = wb.Sheets[wb.SheetNames[0]]
+  const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+  if (rows.length === 0) return null
+
+  let probed = 0
+  for (let i = 0; i < rows.length && probed < SEQ_DMC_PROBE_ROWS; i++) {
+    const row = rows[i]
+    if (!Array.isArray(row)) return null
+    const seq = String(row[0] ?? '').trim()
+    const dmc = String(row[1] ?? '').trim()
+    if (!seq && !dmc) continue  // 空行不算入抽样
+    if (row.length < 2 || !isLikelySeq(seq) || dmc.length < 30) return null
+    probed++
+  }
+  if (probed === 0) return null
+
+  const firstNonEmpty = rows.find((r) => {
+    if (!Array.isArray(r)) return false
+    const s = String(r[0] ?? '').trim()
+    const d = String(r[1] ?? '').trim()
+    return s.length > 0 || d.length > 0
+  })
+  const importedStartSeq = firstNonEmpty ? String(firstNonEmpty[0] ?? '').trim() : ''
+  const codes: string[] = []
+  for (const row of rows) {
+    if (!Array.isArray(row)) continue
+    const seq = String(row[0] ?? '').trim()
+    const dmc = String(row[1] ?? '').trim()
+    if (!seq && !dmc) continue
+    codes.push(dmc)
+  }
+  if (codes.length === 0) return null
+  return { codes, importedStartSeq }
+}
+
+/** 按第一个 `,` 或 `\t` 切前后两段。GS1 AI 21 字符集不含 `\t`,切 Tab 不误伤。 */
+function splitFirstSep(line: string): { before: string; after: string } | null {
+  const commaIdx = line.indexOf(',')
+  const tabIdx = line.indexOf('\t')
+  let idx: number
+  if (commaIdx === -1 && tabIdx === -1) return null
+  else if (commaIdx === -1) idx = tabIdx
+  else if (tabIdx === -1) idx = commaIdx
+  else idx = Math.min(commaIdx, tabIdx)
+  return {
+    before: line.slice(0, idx).trim(),
+    after: line.slice(idx + 1).trim(),
+  }
+}
+
+/** RFC 4180 字段 unquote:`"..."` 去首末 `"` + `""` → `"`。不带 quote 原样返回。 */
+function unquoteCsvField(s: string): string {
+  if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
+    return s.slice(1, -1).replace(/""/g, '"')
+  }
+  return s
+}
+
+/**
+ * 判定 seq 列。要求:
+ *   - 非空、≤ 80 字符
+ *   - 只含字母数字 / 中文 / `-_.`(避开 GS1 特征符 `<` `=` `/` `+` GS 等)
+ *   - **纯数字 > 12 字符不算 seq**,避免客户码本身含 `,` 时前段(如
+ *     `0104620478610363215` 19 字符 GTIN+AI21 头)被 dual 探测误命中吞掉真码。
+ *     实际业务 seq 一般是 `ADU00001` 这种"前缀 + 数字",纯数字长串是 GS1 段。
+ */
+function isLikelySeq(s: string): boolean {
+  if (!s) return false
+  if (s.length > 80) return false
+  if (/^\d+$/.test(s) && s.length > 12) return false
+  return /^[A-Za-z0-9_\-.一-鿿]+$/.test(s)
+}
 
 export type ParseSourceOptions = {
   /** header 正则。匹配的码会从结果里剔除（仅适用首行肯定是表头的导入入口，
@@ -70,10 +200,15 @@ export async function parseSourceFile(
 
   let codes: string[]
   if (isCsv) {
-    const text = await file.text()
-    const rows = parseCsvRows(text)
-    codes = rows
-      .map((row) => pickCellFromRow(row, isValidKm))
+    let text = await file.text()
+    // UTF-8 BOM (Excel 中文导出会带) —— String.trim() 规范上会 strip U+FEFF,但显式
+    // 去更稳。留着会让首行被当成含 BOM 前缀的脏码。
+    if (text.length > 0 && text.charCodeAt(0) === 0xfeff) {
+      text = text.slice(1)
+    }
+    codes = text
+      .split(/\r?\n/)
+      .map((line) => parseCsvLine(line.trim()))
       .filter((c) => c.length > 0)
   } else if (isTxt) {
     const text = await file.text()
@@ -101,34 +236,21 @@ export async function parseSourceFile(
 }
 
 /**
- * CSV 行解析(整行级 RFC 4180 判定 + 脏数据 raw split 兜底)。
+ * CSV 单行解析:整行 = 一条码,不 split `,`。
  *
- * 不用通用 RFC 4180 state machine 的原因:工厂码源经常不规范,码本身可能含 `"`
- * 但客户没 escape。state machine 看到中段的 `"` 就进 quote 模式吞错数据,实测一
- * 行 78 字符的真码被吞掉首末两个 `"` 只剩 76,或者更糟一口气吞下几十行变成"巨码"。
+ * 处理两种情况:
+ *   1. 行首末都是 `"` 且 `"` 总数偶数 → 合法 RFC 4180 quoted line
+ *      → 去首末 `"` + 内部 `""` 还原成 `"`
+ *      客户 45120 文件所有含 `"` 的行都走这里
+ *   2. 否则 → 整行原样保留(空行由外层 filter 掉)
+ *      - 码含 `,` 也保留(GS1 AI 21 字符集允许 `,`,客户 86400/164 文件都有)
+ *      - 码含 `"` 也保留(same,客户实际文件常见)
  *
- * 这里走**整行级判定**:
- *   - 行首末都是 `"` 且 `"` 总数为偶数 → 合法 RFC 4180 quoted line,去包 + `""` → `"`
- *   - 否则 → raw 数据,按 `,` 切多列,所有 `"` 当字面保留
- *
- * 假设(对 DMC 码源都成立):
- *   - 每行就是一条码(GS1 字符集不允许 \n,不存在跨行字段)
- *   - 不需要「一行多个 quoted field」(这个场景在码源 CSV 里没出现过)
- *
- * 返回 string[][]:每行一个数组,quoted 行只有 1 列已 unescape,raw 行可能多列。
+ * 为啥不 split `,`:DMC 码源约定"每行一条码",split 会误拆本来完整的码。之前的
+ * comma-join 兜底 + form 1.5 isValidKm 判定又踩了一堆半截误判的坑,不如直接不 split。
  */
-function parseCsvRows(text: string): string[][] {
-  const lines = text.split(/\r?\n/)
-  const rows: string[][] = []
-  for (const line of lines) {
-    if (line.length === 0) continue
-    rows.push(parseCsvLine(line))
-  }
-  return rows
-}
-
-function parseCsvLine(line: string): string[] {
-  // RFC 4180 quoted-line 检测:首末都是 `"`,且 `"` 总数为偶数
+function parseCsvLine(line: string): string {
+  if (line.length === 0) return ''
   if (
     line.length >= 2 &&
     line.charCodeAt(0) === 0x22 &&  // "
@@ -139,13 +261,10 @@ function parseCsvLine(line: string): string[] {
       if (line.charCodeAt(i) === 0x22) quotes++
     }
     if (quotes % 2 === 0) {
-      // 合法 quoted line:去包 + 内部 "" → "
-      return [line.slice(1, -1).replace(/""/g, '"')]
+      return line.slice(1, -1).replace(/""/g, '"')
     }
   }
-  // 脏数据 / unquoted:按 raw `,` 切多列。`"` 当字面保留,由 pickCellFromRow 走
-  // form 2 (comma-join) 还原成原始码。
-  return line.split(',')
+  return line
 }
 
 /**

@@ -63,6 +63,13 @@ export default function DmcBatchesPage() {
       setPhase('analyzing')
       const p = await parseDmcFile(file)
       setParsed(p)
+
+      // 文件本身带序号列(自己导出的回传 / 客户给的带号码单)→ 用它的首行序号续上。
+      // 不接的话会默默从 ADU000001 重编:码没变但序号整体平移,而工厂的标签和
+      // 装箱记录都是按原序号走的,一重导就对不上。没带序号的文件不动用户当前值。
+      const effectiveStartSeq = p.importedStartSeq ?? startSeq
+      if (p.importedStartSeq) setStartSeq(p.importedStartSeq)
+
       const result = analyzeDmcCodes(p.codes.map((code) => ({ code })))
       setAnalysis(result)
       if (!result.passed) {
@@ -81,7 +88,9 @@ export default function DmcBatchesPage() {
       }
 
       setPhase('dup-checking')
-      const seqPreview = assignSeqs(result.uniqueCodes, startSeq)
+      // 用局部变量,不读 startSeq state —— setStartSeq 是异步的,这里读到的还是旧值,
+      // 会拿错序号去查重(dmc 一样但 seq 对不上,后端记的重复位置就偏了)。
+      const seqPreview = assignSeqs(result.uniqueCodes, effectiveStartSeq)
       const dup = await checkDmcDuplicates({
         customerId: selectedCustomer.id as CustomerId,
         codes: seqPreview.map((a) => ({ seq: a.seq, dmc: a.dmc })),
