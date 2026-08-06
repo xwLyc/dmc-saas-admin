@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Lint + Typecheck + Build
+    name: Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,11 +21,43 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
+      # umi `max build` 自带类型检查;项目没有独立 lint/typecheck 脚本,别再跑不存在的脚本
       - name: Build
         run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-dist
+          path: dist/
+          retention-days: 3
+
+  deploy:
+    name: Deploy to ECS
+    needs: build
+    # 只在 push 到 main 且 build 绿 时部署(PR 不部署)
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-admin
+      cancel-in-progress: false
+    steps:
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: admin-dist
+          path: dist
+
+      - name: Setup deploy SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Rsync dist to ECS (/var/www/dmc-admin)
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            dist/ root@139.224.107.75:/var/www/dmc-admin/
