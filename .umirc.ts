@@ -32,8 +32,8 @@ export default defineConfig({
     locale: false,
   },
 
-  // 浏览器标签页图标(public/favicon.svg)
-  favicons: ['/favicon.svg'],
+  // 后管部署在 /dmc-admin/ 子路径，使用标准 ico 保证浏览器/收藏夹兼容。
+  favicons: ['/dmc-admin/favicon.ico'],
 
   // 在 <head> 最早 inject 一段 inline script,patch console.warn/error 静默
   // 已知的 antd / rc-* / React 18 deprecated warning。
