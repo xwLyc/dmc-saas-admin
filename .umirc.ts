@@ -3,6 +3,10 @@ import { defineConfig } from '@umijs/max'
 export default defineConfig({
   npmClient: 'npm',
 
+  // CI 的代码分包顺序可能让不同 chunk 生成同名 esbuild helper；
+  // 把压缩代码包在独立 IIFE 中，隔离 helper 作用域。
+  esbuildMinifyIIFE: true,
+
   // 生产部署在共用服务器子路径 /dmc-admin/ 下(host nginx),所以静态资源和
   // 路由都要带 base;dev(base 默认 /)不受影响。API 走 /dmc-api/(nginx 反代
   // 到 backend :3001),避免占用裸 /api 这种全局路径。
