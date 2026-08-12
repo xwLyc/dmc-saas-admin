@@ -14,8 +14,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@@/*": ["./src/.umi/*"]
-    },
-    "types": ["@umijs/max/typings"]
+    }
   },
   "include": ["src/**/*", "src/.umi/**/*", ".umirc.ts"]
 }

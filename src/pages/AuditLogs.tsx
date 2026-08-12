@@ -23,6 +23,12 @@ const ACTION_META: Record<AuditAction, { text: string; color: string }> = {
   'admin.login': { text: 'admin 登录', color: 'default' },
   'tenant.create': { text: '新建工厂', color: 'green' },
   'tenant.status_change': { text: '改工厂状态', color: 'blue' },
+  'customer.create': { text: '新建客户', color: 'green' },
+  'customer.update': { text: '修改客户', color: 'blue' },
+  'customer.delete': { text: '删除客户', color: 'red' },
+  'plan.update': { text: '修改套餐', color: 'purple' },
+  'dmc_batch.release': { text: '释放码表', color: 'orange' },
+  'dmc_batch.invalidate': { text: '作废码表', color: 'red' },
 }
 
 const TENANT_STATUS_TEXT: Record<TenantStatus, string> = {
@@ -90,6 +96,12 @@ const columns: ProColumns<AdminAuditLog>[] = [
       'admin.login': { text: 'admin 登录' },
       'tenant.create': { text: '新建工厂' },
       'tenant.status_change': { text: '改工厂状态' },
+      'customer.create': { text: '新建客户' },
+      'customer.update': { text: '修改客户' },
+      'customer.delete': { text: '删除客户' },
+      'plan.update': { text: '修改套餐' },
+      'dmc_batch.release': { text: '释放码表' },
+      'dmc_batch.invalidate': { text: '作废码表' },
     },
     render: (_, row) => {
       const m = ACTION_META[row.action]

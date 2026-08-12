@@ -266,6 +266,13 @@ const SUB_COLUMNS: ProColumns<AdminSubscriptionRow>[] = [
 // 中间列超宽时横向滚动,首尾两个单号列 sticky 便于对账复制。
 const ORDER_COLUMNS: ProColumns<AdminOrderRow>[] = [
   {
+    title: '项目',
+    dataIndex: 'projectName',
+    width: 150,
+    fixed: 'left',
+    render: (_, row) => <Tag color="geekblue">{row.projectName}</Tag>,
+  },
+  {
     title: '商户单号',
     dataIndex: 'outTradeNo',
     width: 250,
@@ -331,7 +338,7 @@ function OrderHistory({ tenantId }: { tenantId: TenantId }) {
       rowKey="id"
       search={false}
       // 固定左右列需要设 scroll.x(≥ 列宽合计),中间列超出即横向滚动
-      scroll={{ x: 1130 }}
+      scroll={{ x: 1280 }}
       pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `共 ${total} 笔` }}
       options={{ density: false, fullScreen: false, reload: true, setting: false }}
       request={async (params) => {

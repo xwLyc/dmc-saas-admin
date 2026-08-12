@@ -5,7 +5,7 @@
  * 阶段二接真微信后退款变 pending → 等回调改 succeeded。
  */
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { history } from '@umijs/max'
 import { ModalForm, ProDescriptions, ProFormDigit, ProFormTextArea, ProTable } from '@ant-design/pro-components'
 import type { ProColumns } from '@ant-design/pro-components'
@@ -20,16 +20,19 @@ import {
 import type {
   AdminOrderDetail,
   AdminOrderRow,
+  OrderFulfillmentStatus,
   OrderStatus,
   PaymentChannel,
+  PaymentProject,
   PlanId,
 } from '@dmc/contracts'
-import { getOrderDetail, listOrders, refundOrder } from '@/services/admin'
+import { getOrderDetail, listOrders, listPaymentProjects, refundOrder } from '@/services/admin'
 import { getErrorMessage } from '@/lib/errorMsg'
 
 const PLAN_META: Record<PlanId, { text: string; color: string }> = {
   monthly: { text: '月度', color: 'blue' },
   yearly: { text: '年度', color: 'gold' },
+  lifetime: { text: '永久', color: 'purple' },
 }
 
 const STATUS_META: Record<OrderStatus, { text: string; color: string }> = {
@@ -38,6 +41,13 @@ const STATUS_META: Record<OrderStatus, { text: string; color: string }> = {
   expired: { text: '已过期', color: 'red' },
   cancelled: { text: '已取消', color: 'orange' },
   refunded: { text: '已退款', color: 'magenta' },
+}
+
+const FULFILLMENT_META: Record<OrderFulfillmentStatus, { text: string; color: string }> = {
+  pending: { text: '待开通', color: 'default' },
+  processing: { text: '开通中', color: 'processing' },
+  applied: { text: '已开通', color: 'green' },
+  failed: { text: '开通失败', color: 'red' },
 }
 
 const CHANNEL_META: Record<PaymentChannel, { text: string; color: string }> = {
@@ -65,6 +75,18 @@ export default function OrdersPage() {
   const [detail, setDetail] = useState<AdminOrderDetail | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [projects, setProjects] = useState<PaymentProject[]>([])
+
+  useEffect(() => {
+    listPaymentProjects()
+      .then((result) => setProjects(result.projects))
+      .catch((error) => message.error(getErrorMessage(error, '加载支付项目失败')))
+  }, [])
+
+  const projectValueEnum = useMemo(
+    () => Object.fromEntries(projects.map((project) => [project.code, { text: project.name }])),
+    [projects],
+  )
 
   const openDetail = async (id: string) => {
     setDetailOpen(true)
@@ -94,6 +116,15 @@ export default function OrdersPage() {
           {row.tenantName}
         </Typography.Link>
       ),
+    },
+    {
+      title: '项目',
+      dataIndex: 'projectCode',
+      width: 160,
+      valueType: 'select',
+      valueEnum: projectValueEnum,
+      fieldProps: { placeholder: '全部项目' },
+      render: (_, row) => <Tag color="geekblue">{row.projectName}</Tag>,
     },
     {
       title: '订单号',
@@ -146,6 +177,17 @@ export default function OrdersPage() {
       render: (_, row) => { const m = metaOf(CHANNEL_META, row.channel); return <Tag color={m.color}>{m.text}</Tag> },
     },
     {
+      title: '履约',
+      dataIndex: 'fulfillmentStatus',
+      width: 100,
+      search: false,
+      render: (_, row) => {
+        if (row.status !== 'paid') return '—'
+        const m = metaOf(FULFILLMENT_META, row.fulfillmentStatus)
+        return <Tag color={m.color}>{m.text}</Tag>
+      },
+    },
+    {
       title: '创建时间',
       dataIndex: 'createdAt',
       width: 170,
@@ -179,7 +221,7 @@ export default function OrdersPage() {
         headerTitle="订单管理"
         columns={columns}
         rowKey="id"
-        scroll={{ x: 1400 }}
+        scroll={{ x: 1560 }}
         pagination={{ pageSize: 20, showSizeChanger: false, showTotal: (total) => `共 ${total} 笔订单` }}
         search={{ labelWidth: 80, defaultCollapsed: false }}
         request={async (params) => {
@@ -189,6 +231,7 @@ export default function OrdersPage() {
             search: (params.tenantName as string | undefined) || undefined,
             status: (params.status as OrderStatus | undefined) || undefined,
             channel: (params.channel as PaymentChannel | undefined) || undefined,
+            projectCode: (params.projectCode as string | undefined) || undefined,
             from: (params.from as string | undefined) || undefined,
             to: (params.to as string | undefined) || undefined,
           })
@@ -223,13 +266,18 @@ export default function OrdersPage() {
                 { title: '订单号', dataIndex: 'id', span: 2, copyable: true },
                 { title: '工厂', dataIndex: 'tenantName' },
                 { title: '联系电话', dataIndex: 'tenantContactPhone', copyable: true },
+                { title: '项目', dataIndex: 'projectName', render: (_, row) => <Tag color="geekblue">{row.projectName}</Tag> },
+                { title: '项目代码', dataIndex: 'projectCode', copyable: true },
                 { title: '套餐', dataIndex: 'plan', render: (_, row) => metaOf(PLAN_META, row.plan).text },
                 { title: '金额', dataIndex: 'amountFen', render: (_, row) => yuan(row.amountFen) },
                 { title: '状态', dataIndex: 'status', render: (_, row) => { const m = metaOf(STATUS_META, row.status); return <Tag color={m.color}>{m.text}</Tag> } },
+                { title: '订阅开通', dataIndex: 'fulfillmentStatus', render: (_, row) => { const m = metaOf(FULFILLMENT_META, row.fulfillmentStatus); return <Tag color={m.color}>{m.text}</Tag> } },
                 { title: '渠道', dataIndex: 'channel', render: (_, row) => metaOf(CHANNEL_META, row.channel).text },
                 { title: '微信流水号', dataIndex: 'transactionId', render: (v) => v ? <Typography.Text code>{v as string}</Typography.Text> : '—', span: 2 },
                 { title: '创建时间', dataIndex: 'createdAt', valueType: 'dateTime' },
                 { title: '支付时间', dataIndex: 'paidAt', valueType: 'dateTime', render: (v) => v ? (v as string) : '—' },
+                { title: '开通时间', dataIndex: 'fulfilledAt', valueType: 'dateTime', render: (v) => v ? (v as string) : '—' },
+                { title: '开通错误', dataIndex: 'fulfillmentError', render: (v) => v ? <Typography.Text type="danger">{v as string}</Typography.Text> : '—', span: 2 },
                 { title: '退款时间', dataIndex: 'refundedAt', valueType: 'dateTime', render: (v) => v ? (v as string) : '—' },
               ]}
             />

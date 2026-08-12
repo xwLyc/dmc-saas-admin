@@ -92,6 +92,12 @@ export default defineConfig({
       icon: 'DollarOutlined',
     },
     {
+      path: '/plans',
+      component: '@/pages/Plans',
+      name: '套餐配置',
+      icon: 'SettingOutlined',
+    },
+    {
       // 俄罗斯客户(买家/进口商)——给 DMC 码表的一方,别跟「工厂管理」混
       path: '/customers',
       component: '@/pages/Customers',

@@ -63,9 +63,9 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   fixSiderbar: true,
   layout: 'mix',
   contentStyle: { padding: 16 },
-  rightContentRender: () => {
+  rightContentRender: (_header, dom) => {
     const admin = (initialState as InitialState | undefined)?.admin
-    if (!admin) return null
+    if (!admin) return dom
     return (
       <Dropdown
         menu={{

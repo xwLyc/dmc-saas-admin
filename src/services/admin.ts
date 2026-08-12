@@ -39,6 +39,12 @@ import type {
   AssignTenantRequest,
   AdminListDmcBatchesQuery,
   AdminListDmcBatchesResponse,
+  AdminPlanConfig,
+  AdminPlanListResponse,
+  AdminUpdatePlanRequest,
+  AdminInvalidateDmcBatchRequest,
+  ReleaseDmcBatchResponse,
+  PaymentProjectListResponse,
 } from '@dmc/contracts'
 import { clearTokens, getRefreshToken, saveTokens } from './token'
 
@@ -175,6 +181,23 @@ export async function listSubscriptions(
   })
 }
 
+// ───── plan configs ─────
+
+export async function listPlans(): Promise<AdminPlanListResponse> {
+  return request<AdminPlanListResponse>('/admin/plans', { method: 'GET' })
+}
+
+export async function updatePlan(
+  id: string,
+  body: AdminUpdatePlanRequest,
+): Promise<AdminPlanConfig> {
+  return request<AdminPlanConfig>(`/admin/plans/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    data: body,
+    skipErrorHandler: true,
+  })
+}
+
 // ───── orders ─────
 
 /** 所有订单(含 pending/expired/refunded;比 listSubscriptions 范围更广)*/
@@ -185,6 +208,11 @@ export async function listOrders(
     method: 'GET',
     params,
   })
+}
+
+/** 统一支付后管当前已登记的项目，用于订单筛选与展示。 */
+export async function listPaymentProjects(): Promise<PaymentProjectListResponse> {
+  return request<PaymentProjectListResponse>('/admin/payment-projects', { method: 'GET' })
 }
 
 /** 订单详情(含 payments + refunds nested) */
@@ -309,6 +337,24 @@ export async function assignBatchTenant(
 export async function deleteDmcBatch(batchId: string): Promise<void> {
   return request<void>(`/admin/dmc-batches/${encodeURIComponent(batchId)}`, {
     method: 'DELETE',
+    skipErrorHandler: true,
+  })
+}
+
+export async function releaseDmcBatch(batchId: string): Promise<ReleaseDmcBatchResponse> {
+  return request<ReleaseDmcBatchResponse>(`/admin/dmc-batches/${encodeURIComponent(batchId)}/release`, {
+    method: 'POST',
+    skipErrorHandler: true,
+  })
+}
+
+export async function invalidateDmcBatch(
+  batchId: string,
+  body: AdminInvalidateDmcBatchRequest,
+): Promise<void> {
+  await request(`/admin/dmc-batches/${encodeURIComponent(batchId)}/invalidate`, {
+    method: 'POST',
+    data: body,
     skipErrorHandler: true,
   })
 }

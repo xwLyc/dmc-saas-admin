@@ -13,6 +13,8 @@ import {
   Button,
   Card,
   Empty,
+  Input,
+  Modal,
   Popconfirm,
   Skeleton,
   Space,
@@ -22,15 +24,23 @@ import {
   message,
 } from 'antd'
 import { ArrowLeftOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
-import type { CustomerBatchRow, CustomerDetailResponse } from '@dmc/contracts'
-import { deleteCustomer, deleteDmcBatch, getCustomerDetail } from '@/services/admin'
+import type { CustomerBatchRow, CustomerDetailResponse, DmcBatchStatus } from '@dmc/contracts'
+import {
+  deleteCustomer,
+  deleteDmcBatch,
+  getCustomerDetail,
+  invalidateDmcBatch,
+  releaseDmcBatch,
+} from '@/services/admin'
 import { getErrorMessage } from '@/lib/errorMsg'
 import UploadBatchToCustomerModal from './dmc/UploadBatchToCustomerModal'
 import AssignTenantButton from './dmc/AssignTenantButton'
 
-const BATCH_STATUS_META: Record<'available' | 'used', { text: string; color: string }> = {
+const BATCH_STATUS_META: Record<DmcBatchStatus, { text: string; color: string }> = {
   available: { text: '可用', color: 'green' },
-  used: { text: '已使用', color: 'default' },
+  claimed: { text: '已领取', color: 'blue' },
+  used: { text: '生产中', color: 'gold' },
+  invalidated: { text: '已作废', color: 'default' },
 }
 
 export default function CustomerDetailPage() {
@@ -100,41 +110,87 @@ export default function CustomerDetailPage() {
     },
     {
       title: '操作',
-      width: 150,
+      width: 180,
       render: (_, r) => (
         <Space size="middle">
           {/* 只有还没分配工厂的码表能分配;已分配的不显示(改派是另一回事,先不做) */}
-          {!r.tenantId && (
+          {!r.tenantId && r.status === 'available' && (
             <AssignTenantButton batchId={r.id} onAssigned={() => void load()} />
           )}
-          <Popconfirm
-            title="删除这张码表？"
-            description={
-              <div style={{ maxWidth: 300 }}>
-                将删除「{r.name}」的全部 {r.total.toLocaleString()} 条码，不可恢复。
-                {r.status === 'used' && (
-                  <div style={{ color: '#cf1322', marginTop: 6 }}>
-                    ⚠ 该码表已被工厂使用，这些码可能已印在产品上。删除后查重将不再
-                    覆盖它们，若客户重发同样的码将无法发现。请确认无误。
-                  </div>
-                )}
-              </div>
-            }
-            okText="删除"
-            okButtonProps={{ danger: true }}
-            cancelText="取消"
-            onConfirm={async () => {
-              try {
-                await deleteDmcBatch(r.id)
-                message.success('已删除')
-                void load()
-              } catch (err) {
-                message.error(getErrorMessage(err, '删除失败'))
-              }
-            }}
-          >
-            <a style={{ color: '#cf1322' }}>删除</a>
-          </Popconfirm>
+          {r.status === 'available' && (
+            <Popconfirm
+              title="删除这张从未领取的码表？"
+              description={`将删除「${r.name}」的全部 ${r.total.toLocaleString()} 条码，不可恢复。`}
+              okText="删除"
+              okButtonProps={{ danger: true }}
+              cancelText="取消"
+              onConfirm={async () => {
+                try {
+                  await deleteDmcBatch(r.id)
+                  message.success('已删除')
+                  void load()
+                } catch (err) {
+                  message.error(getErrorMessage(err, '删除失败'))
+                }
+              }}
+            >
+              <a style={{ color: '#cf1322' }}>删除</a>
+            </Popconfirm>
+          )}
+          {r.status === 'claimed' && (
+            <Popconfirm
+              title="释放该码表？"
+              description="仅适用于工厂确认尚未扫码生产的情况。释放后可被重新领取。"
+              onConfirm={async () => {
+                try {
+                  await releaseDmcBatch(r.id)
+                  message.success('已释放')
+                  void load()
+                } catch (err) {
+                  message.error(getErrorMessage(err, '释放失败'))
+                }
+              }}
+            >
+              <a>释放</a>
+            </Popconfirm>
+          )}
+          {r.status === 'used' && (
+            <a
+              style={{ color: '#cf1322' }}
+              onClick={() => {
+                let reason = ''
+                Modal.confirm({
+                  title: '作废生产中的码表',
+                  content: (
+                    <Input.TextArea
+                      autoFocus
+                      rows={3}
+                      placeholder="请输入作废原因（必填，会写入操作记录）"
+                      onChange={(event) => { reason = event.target.value }}
+                    />
+                  ),
+                  okText: '确认作废',
+                  okButtonProps: { danger: true },
+                  onOk: async () => {
+                    if (!reason.trim()) {
+                      message.error('请输入作废原因')
+                      throw new Error('reason required')
+                    }
+                    try {
+                      await invalidateDmcBatch(r.id, { reason: reason.trim() })
+                      message.success('已作废，生产历史仍保留')
+                      void load()
+                    } catch (err) {
+                      message.error(getErrorMessage(err, '作废失败'))
+                      throw err
+                    }
+                  },
+                })
+              }}
+            >
+              作废
+            </a>
+          )}
         </Space>
       ),
     },
