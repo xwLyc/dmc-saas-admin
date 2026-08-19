@@ -155,7 +155,7 @@ export default function UploadBatchToCustomerModal({
           />
           <Upload.Dragger {...uploadProps}>
             <p className="ant-upload-drag-icon">
-              <CloudUploadOutlined style={{ color: '#6366f1' }} />
+              <CloudUploadOutlined style={{ color: '#316eea' }} />
             </p>
             <p className="ant-upload-text">点击或拖拽文件到这里上传</p>
             <p className="ant-upload-hint">支持 CSV / XLSX / XLS / TXT，一列 DMC 码</p>

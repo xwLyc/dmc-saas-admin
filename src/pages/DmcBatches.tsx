@@ -241,7 +241,7 @@ export default function DmcBatchesPage() {
             />
             <Upload.Dragger {...uploadProps} key={fileInputResetKey.current}>
               <p className="ant-upload-drag-icon">
-                <CloudUploadOutlined style={{ color: '#6366f1' }} />
+                <CloudUploadOutlined style={{ color: '#316eea' }} />
               </p>
               <p className="ant-upload-text">点击或拖拽文件到这里上传</p>
               <p className="ant-upload-hint">
@@ -407,8 +407,8 @@ function SelectTenantStep({
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '12px 16px', borderRadius: 8, cursor: 'pointer',
-                  border: `1px solid ${isSelected ? '#6366f1' : '#f0f0f0'}`,
-                  background: isSelected ? '#f5f3ff' : '#fff',
+                  border: `1px solid ${isSelected ? '#316eea' : '#e4eaf2'}`,
+                  background: isSelected ? '#edf3ff' : '#fff',
                   transition: 'all 0.15s',
                 }}
               >
@@ -427,7 +427,7 @@ function SelectTenantStep({
                     </span>
                   </div>
                 </div>
-                {isSelected && <CheckCircleOutlined style={{ color: '#6366f1', fontSize: 18 }} />}
+                {isSelected && <CheckCircleOutlined style={{ color: '#316eea', fontSize: 18 }} />}
               </div>
             )
           })}
