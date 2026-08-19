@@ -291,7 +291,7 @@ function SourceUploadStep({
       />
       <Upload.Dragger {...props} key={resetKey}>
         <p className="ant-upload-drag-icon">
-          <CloudUploadOutlined style={{ color: '#6366f1' }} />
+          <CloudUploadOutlined style={{ color: '#316eea' }} />
         </p>
         <p className="ant-upload-text">点击或拖拽源码文件到这里</p>
         <p className="ant-upload-hint">支持 .csv / .txt / .xlsx / .xls</p>
@@ -357,7 +357,7 @@ function PickScanStep({
         <Col span={12}>
           <Upload.Dragger {...multiProps} key={`m-${resetKey}`} style={{ padding: '12px 0' }}>
             <p className="ant-upload-drag-icon" style={{ margin: 0 }}>
-              <FileSearchOutlined style={{ color: '#6366f1', fontSize: 32 }} />
+              <FileSearchOutlined style={{ color: '#316eea', fontSize: 32 }} />
             </p>
             <p className="ant-upload-text" style={{ fontSize: 13 }}>选择多个文件</p>
             <p className="ant-upload-hint" style={{ fontSize: 11 }}>按住 Cmd/Ctrl 多选</p>
@@ -366,7 +366,7 @@ function PickScanStep({
         <Col span={12}>
           <Upload.Dragger {...dirProps} key={`d-${resetKey}`} style={{ padding: '12px 0' }}>
             <p className="ant-upload-drag-icon" style={{ margin: 0 }}>
-              <FolderOpenOutlined style={{ color: '#6366f1', fontSize: 32 }} />
+              <FolderOpenOutlined style={{ color: '#316eea', fontSize: 32 }} />
             </p>
             <p className="ant-upload-text" style={{ fontSize: 13 }}>选择整个文件夹</p>
             <p className="ant-upload-hint" style={{ fontSize: 11 }}>非 PDF/图片会自动忽略</p>

@@ -225,7 +225,7 @@ export function ConfigureView({
           <span>
             文件 {parsed.filename} 校验通过，共 {total} 条
             {selectedTenant && (
-              <span style={{ marginLeft: 8, color: '#6366f1', fontWeight: 600 }}>
+              <span style={{ marginLeft: 8, color: '#316eea', fontWeight: 600 }}>
                 · 将保存到「{selectedTenant.name}」
               </span>
             )}
