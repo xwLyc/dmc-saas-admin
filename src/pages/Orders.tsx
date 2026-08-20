@@ -7,16 +7,15 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { history } from '@umijs/max'
-import { ModalForm, ProDescriptions, ProFormDigit, ProFormTextArea, ProTable } from '@ant-design/pro-components'
-import type { ProColumns } from '@ant-design/pro-components'
 import {
-  Button,
-  Drawer,
-  Popconfirm,
-  Tag,
-  Typography,
-  message,
-} from 'antd'
+  ModalForm,
+  ProDescriptions,
+  ProFormDigit,
+  ProFormTextArea,
+  ProTable,
+} from '@ant-design/pro-components'
+import type { ProColumns } from '@ant-design/pro-components'
+import { Button, Drawer, Popconfirm, Tag, Typography, message } from 'antd'
 import type {
   AdminOrderDetail,
   AdminOrderRow,
@@ -28,6 +27,7 @@ import type {
 } from '@dmc/contracts'
 import { getOrderDetail, listOrders, listPaymentProjects, refundOrder } from '@/services/admin'
 import { getErrorMessage } from '@/lib/errorMsg'
+import { WorkspaceTableTitle } from '@/components/WorkspacePage'
 
 const PLAN_META: Record<PlanId, { text: string; color: string }> = {
   monthly: { text: '月度', color: 'blue' },
@@ -55,7 +55,10 @@ const CHANNEL_META: Record<PaymentChannel, { text: string; color: string }> = {
   alipay: { text: '支付宝', color: 'blue' },
 }
 
-const REFUND_STATUS_META: Record<'pending' | 'succeeded' | 'failed', { text: string; color: string }> = {
+const REFUND_STATUS_META: Record<
+  'pending' | 'succeeded' | 'failed',
+  { text: string; color: string }
+> = {
   pending: { text: '处理中', color: 'default' },
   succeeded: { text: '已退款', color: 'green' },
   failed: { text: '失败', color: 'red' },
@@ -111,7 +114,10 @@ export default function OrdersPage() {
       render: (_, row) => (
         <Typography.Link
           href={`/tenants/${row.tenantId}`}
-          onClick={(e) => { e.preventDefault(); history.push(`/tenants/${row.tenantId}`) }}
+          onClick={(e) => {
+            e.preventDefault()
+            history.push(`/tenants/${row.tenantId}`)
+          }}
         >
           {row.tenantName}
         </Typography.Link>
@@ -142,7 +148,10 @@ export default function OrdersPage() {
       dataIndex: 'plan',
       width: 90,
       search: false,
-      render: (_, row) => { const m = metaOf(PLAN_META, row.plan); return <Tag color={m.color}>{m.text}</Tag> },
+      render: (_, row) => {
+        const m = metaOf(PLAN_META, row.plan)
+        return <Tag color={m.color}>{m.text}</Tag>
+      },
     },
     {
       title: '金额',
@@ -164,7 +173,10 @@ export default function OrdersPage() {
       valueEnum: Object.fromEntries(
         Object.entries(STATUS_META).map(([k, v]) => [k, { text: v.text }]),
       ),
-      render: (_, row) => { const m = metaOf(STATUS_META, row.status); return <Tag color={m.color}>{m.text}</Tag> },
+      render: (_, row) => {
+        const m = metaOf(STATUS_META, row.status)
+        return <Tag color={m.color}>{m.text}</Tag>
+      },
     },
     {
       title: '渠道',
@@ -174,7 +186,10 @@ export default function OrdersPage() {
       valueEnum: Object.fromEntries(
         Object.entries(CHANNEL_META).map(([k, v]) => [k, { text: v.text }]),
       ),
-      render: (_, row) => { const m = metaOf(CHANNEL_META, row.channel); return <Tag color={m.color}>{m.text}</Tag> },
+      render: (_, row) => {
+        const m = metaOf(CHANNEL_META, row.channel)
+        return <Tag color={m.color}>{m.text}</Tag>
+      },
     },
     {
       title: '履约',
@@ -216,13 +231,19 @@ export default function OrdersPage() {
   ]
 
   return (
-    <>
+    <div className="dmc-page-stack">
       <ProTable<AdminOrderRow>
-        headerTitle="订单管理"
+        headerTitle={
+          <WorkspaceTableTitle title="订单流水" description="支付、履约与退款状态集中核对" />
+        }
         columns={columns}
         rowKey="id"
         scroll={{ x: 1560 }}
-        pagination={{ pageSize: 20, showSizeChanger: false, showTotal: (total) => `共 ${total} 笔订单` }}
+        pagination={{
+          pageSize: 20,
+          showSizeChanger: false,
+          showTotal: (total) => `共 ${total} 笔订单`,
+        }}
         search={{ labelWidth: 80, defaultCollapsed: false }}
         request={async (params) => {
           const resp = await listOrders({
@@ -241,16 +262,22 @@ export default function OrdersPage() {
       />
 
       <Drawer
+        className="dmc-order-drawer"
         title="订单详情"
         open={detailOpen}
-        onClose={() => { setDetailOpen(false); setTimeout(() => setDetail(null), 300) }}
+        onClose={() => {
+          setDetailOpen(false)
+          setTimeout(() => setDetail(null), 300)
+        }}
         width={720}
         destroyOnClose
         extra={
           detail?.status === 'paid' && (
             <RefundModalButton
               order={detail}
-              onSuccess={async () => { if (detail) await openDetail(detail.id) }}
+              onSuccess={async () => {
+                if (detail) await openDetail(detail.id)
+              }}
             />
           )
         }
@@ -261,62 +288,130 @@ export default function OrdersPage() {
           <>
             <ProDescriptions<AdminOrderDetail>
               dataSource={detail}
-              column={2}
+              bordered
+              size="small"
+              column={{ xs: 1, sm: 1, md: 2 }}
               columns={[
                 { title: '订单号', dataIndex: 'id', span: 2, copyable: true },
                 { title: '工厂', dataIndex: 'tenantName' },
                 { title: '联系电话', dataIndex: 'tenantContactPhone', copyable: true },
-                { title: '项目', dataIndex: 'projectName', render: (_, row) => <Tag color="geekblue">{row.projectName}</Tag> },
+                {
+                  title: '项目',
+                  dataIndex: 'projectName',
+                  render: (_, row) => <Tag color="geekblue">{row.projectName}</Tag>,
+                },
                 { title: '项目代码', dataIndex: 'projectCode', copyable: true },
-                { title: '套餐', dataIndex: 'plan', render: (_, row) => metaOf(PLAN_META, row.plan).text },
+                {
+                  title: '套餐',
+                  dataIndex: 'plan',
+                  render: (_, row) => metaOf(PLAN_META, row.plan).text,
+                },
                 { title: '金额', dataIndex: 'amountFen', render: (_, row) => yuan(row.amountFen) },
-                { title: '状态', dataIndex: 'status', render: (_, row) => { const m = metaOf(STATUS_META, row.status); return <Tag color={m.color}>{m.text}</Tag> } },
-                { title: '订阅开通', dataIndex: 'fulfillmentStatus', render: (_, row) => { const m = metaOf(FULFILLMENT_META, row.fulfillmentStatus); return <Tag color={m.color}>{m.text}</Tag> } },
-                { title: '渠道', dataIndex: 'channel', render: (_, row) => metaOf(CHANNEL_META, row.channel).text },
-                { title: '微信流水号', dataIndex: 'transactionId', render: (v) => v ? <Typography.Text code>{v as string}</Typography.Text> : '—', span: 2 },
+                {
+                  title: '状态',
+                  dataIndex: 'status',
+                  render: (_, row) => {
+                    const m = metaOf(STATUS_META, row.status)
+                    return <Tag color={m.color}>{m.text}</Tag>
+                  },
+                },
+                {
+                  title: '订阅开通',
+                  dataIndex: 'fulfillmentStatus',
+                  render: (_, row) => {
+                    const m = metaOf(FULFILLMENT_META, row.fulfillmentStatus)
+                    return <Tag color={m.color}>{m.text}</Tag>
+                  },
+                },
+                {
+                  title: '渠道',
+                  dataIndex: 'channel',
+                  render: (_, row) => metaOf(CHANNEL_META, row.channel).text,
+                },
+                {
+                  title: '微信流水号',
+                  dataIndex: 'transactionId',
+                  render: (v) => (v ? <Typography.Text code>{v as string}</Typography.Text> : '—'),
+                  span: 2,
+                },
                 { title: '创建时间', dataIndex: 'createdAt', valueType: 'dateTime' },
-                { title: '支付时间', dataIndex: 'paidAt', valueType: 'dateTime', render: (v) => v ? (v as string) : '—' },
-                { title: '开通时间', dataIndex: 'fulfilledAt', valueType: 'dateTime', render: (v) => v ? (v as string) : '—' },
-                { title: '开通错误', dataIndex: 'fulfillmentError', render: (v) => v ? <Typography.Text type="danger">{v as string}</Typography.Text> : '—', span: 2 },
-                { title: '退款时间', dataIndex: 'refundedAt', valueType: 'dateTime', render: (v) => v ? (v as string) : '—' },
+                {
+                  title: '支付时间',
+                  dataIndex: 'paidAt',
+                  valueType: 'dateTime',
+                  render: (v) => (v ? (v as string) : '—'),
+                },
+                {
+                  title: '开通时间',
+                  dataIndex: 'fulfilledAt',
+                  valueType: 'dateTime',
+                  render: (v) => (v ? (v as string) : '—'),
+                },
+                {
+                  title: '开通错误',
+                  dataIndex: 'fulfillmentError',
+                  render: (v) =>
+                    v ? <Typography.Text type="danger">{v as string}</Typography.Text> : '—',
+                  span: 2,
+                },
+                {
+                  title: '退款时间',
+                  dataIndex: 'refundedAt',
+                  valueType: 'dateTime',
+                  render: (v) => (v ? (v as string) : '—'),
+                },
               ]}
             />
 
             {detail.payments.length > 0 && (
-              <>
-                <Typography.Title level={5} style={{ marginTop: 16 }}>支付流水 ({detail.payments.length})</Typography.Title>
+              <section className="dmc-drawer-section">
+                <div className="dmc-drawer-section-title">
+                  <strong>支付流水</strong>
+                  <span>{detail.payments.length} 笔</span>
+                </div>
                 {detail.payments.map((p) => (
-                  <div key={p.id} style={{ padding: 12, background: '#fafafa', borderRadius: 6, marginBottom: 8 }}>
-                    <div style={{ fontSize: 12 }}>
+                  <div key={p.id} className="dmc-transaction-item">
+                    <div>
                       <Typography.Text code>{p.transactionId}</Typography.Text>
-                      {' · '}{yuan(p.amountFen)}
-                      {' · '}{new Date(p.receivedAt).toLocaleString('zh-CN', { hour12: false })}
+                      {' · '}
+                      {yuan(p.amountFen)}
+                      {' · '}
+                      {new Date(p.receivedAt).toLocaleString('zh-CN', { hour12: false })}
                     </div>
                   </div>
                 ))}
-              </>
+              </section>
             )}
 
             {detail.refunds.length > 0 && (
-              <>
-                <Typography.Title level={5} style={{ marginTop: 16 }}>退款记录 ({detail.refunds.length})</Typography.Title>
+              <section className="dmc-drawer-section">
+                <div className="dmc-drawer-section-title">
+                  <strong>退款记录</strong>
+                  <span>{detail.refunds.length} 笔</span>
+                </div>
                 {detail.refunds.map((r) => (
-                  <div key={r.id} style={{ padding: 12, background: '#fef9e7', borderRadius: 6, marginBottom: 8 }}>
-                    <div style={{ fontSize: 12, marginBottom: 4 }}>
-                      {(() => { const m = metaOf(REFUND_STATUS_META, r.status); return <Tag color={m.color}>{m.text}</Tag> })()}
+                  <div key={r.id} className="dmc-transaction-item is-refund">
+                    <div className="dmc-transaction-main">
+                      {(() => {
+                        const m = metaOf(REFUND_STATUS_META, r.status)
+                        return <Tag color={m.color}>{m.text}</Tag>
+                      })()}
                       {yuan(r.amountFen)}
-                      {' · '}{new Date(r.createdAt).toLocaleString('zh-CN', { hour12: false })}
+                      {' · '}
+                      {new Date(r.createdAt).toLocaleString('zh-CN', { hour12: false })}
                     </div>
-                    <div style={{ fontSize: 11, color: '#888' }}>原因: {r.reason}</div>
-                    {r.failReason && <div style={{ fontSize: 11, color: '#d32f2f' }}>失败: {r.failReason}</div>}
+                    <div className="dmc-transaction-note">原因: {r.reason}</div>
+                    {r.failReason && (
+                      <div className="dmc-transaction-error">失败: {r.failReason}</div>
+                    )}
                   </div>
                 ))}
-              </>
+              </section>
             )}
           </>
         ) : null}
       </Drawer>
-    </>
+    </div>
   )
 }
 
@@ -352,7 +447,12 @@ function RefundModalButton({
         }
       }}
     >
-      <Popconfirm title={`确认退款 ¥${(order.amountFen / 100).toFixed(2)} 给 "${order.tenantName}"?`} okText="确认" cancelText="取消" disabled>
+      <Popconfirm
+        title={`确认退款 ¥${(order.amountFen / 100).toFixed(2)} 给 "${order.tenantName}"?`}
+        okText="确认"
+        cancelText="取消"
+        disabled
+      >
         <></>
       </Popconfirm>
       <ProFormDigit

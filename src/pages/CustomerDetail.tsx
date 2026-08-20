@@ -35,6 +35,7 @@ import {
 import { getErrorMessage } from '@/lib/errorMsg'
 import UploadBatchToCustomerModal from './dmc/UploadBatchToCustomerModal'
 import AssignTenantButton from './dmc/AssignTenantButton'
+import { WorkspaceTableTitle } from '@/components/WorkspacePage'
 
 const BATCH_STATUS_META: Record<DmcBatchStatus, { text: string; color: string }> = {
   available: { text: '可用', color: 'green' },
@@ -65,8 +66,18 @@ export default function CustomerDetailPage() {
     void load()
   }, [load])
 
-  if (loading && !data) return <Card><Skeleton active /></Card>
-  if (!data) return <Card><Empty description="客户不存在" /></Card>
+  if (loading && !data)
+    return (
+      <Card>
+        <Skeleton active />
+      </Card>
+    )
+  if (!data)
+    return (
+      <Card>
+        <Empty description="客户不存在" />
+      </Card>
+    )
 
   const columns: ProColumns<CustomerBatchRow>[] = [
     { title: '码表名称', dataIndex: 'name', ellipsis: true },
@@ -166,7 +177,9 @@ export default function CustomerDetailPage() {
                       autoFocus
                       rows={3}
                       placeholder="请输入作废原因（必填，会写入操作记录）"
-                      onChange={(event) => { reason = event.target.value }}
+                      onChange={(event) => {
+                        reason = event.target.value
+                      }}
                     />
                   ),
                   okText: '确认作废',
@@ -197,21 +210,27 @@ export default function CustomerDetailPage() {
   ]
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+    <div className="dmc-page-stack">
       <Card
+        className="dmc-detail-card"
         title={
-          <Space>
+          <div className="dmc-detail-card-title">
             <Button
               type="text"
+              className="dmc-card-back"
               icon={<ArrowLeftOutlined />}
+              aria-label="返回客户列表"
               onClick={() => history.push('/customers')}
             />
-            {data.name}
-            {data.shortName && <Tag>{data.shortName}</Tag>}
-          </Space>
+            <WorkspaceTableTitle
+              title={data.name}
+              description="全部历史码表共同组成该客户的跨批次查重基准"
+              badge={data.shortName ? <Tag>{data.shortName}</Tag> : undefined}
+            />
+          </div>
         }
         extra={
-          <Space>
+          <Space wrap>
             <Button icon={<ReloadOutlined />} onClick={() => void load()}>
               刷新
             </Button>
@@ -238,19 +257,15 @@ export default function CustomerDetailPage() {
           </Space>
         }
       >
-        <Space size={48} style={{ marginBottom: 16 }}>
+        <div className="dmc-metric-strip">
           <Statistic title="码表张数" value={data.batchCount} suffix="张" />
           <Statistic title="累计码数" value={data.codeCount} />
-        </Space>
-        <ProDescriptions column={2}>
+        </div>
+        <ProDescriptions bordered size="small" column={{ xs: 1, sm: 1, md: 2, xl: 2 }}>
           <ProDescriptions.Item label="客户名称">{data.name}</ProDescriptions.Item>
-          <ProDescriptions.Item label="内部简称">
-            {data.shortName ?? '—'}
-          </ProDescriptions.Item>
+          <ProDescriptions.Item label="内部简称">{data.shortName ?? '—'}</ProDescriptions.Item>
           <ProDescriptions.Item label="联系人">{data.contact ?? '—'}</ProDescriptions.Item>
-          <ProDescriptions.Item label="联系方式">
-            {data.contactInfo ?? '—'}
-          </ProDescriptions.Item>
+          <ProDescriptions.Item label="联系方式">{data.contactInfo ?? '—'}</ProDescriptions.Item>
           <ProDescriptions.Item label="创建时间">
             {new Date(data.createdAt).toLocaleString('zh-CN')}
           </ProDescriptions.Item>
@@ -259,7 +274,9 @@ export default function CustomerDetailPage() {
       </Card>
 
       <ProTable<CustomerBatchRow>
-        headerTitle="DMC 码表档案"
+        headerTitle={
+          <WorkspaceTableTitle title="DMC 码表档案" description="历史码表、分配对象与生产状态" />
+        }
         columns={columns}
         rowKey="id"
         dataSource={data.batches}
@@ -279,15 +296,13 @@ export default function CustomerDetailPage() {
           </Button>,
         ]}
         tableExtraRender={() => (
-          <Typography.Paragraph type="secondary" style={{ margin: '0 0 8px' }}>
+          <Typography.Paragraph className="dmc-inline-note">
             以下码表就是该客户的查重基准 —— 新上传的码表会跟这里全部
             {data.codeCount.toLocaleString()} 条码逐一比对，重复则拒绝入库。
           </Typography.Paragraph>
         )}
         locale={{
-          emptyText: (
-            <Empty description="该客户还没有码表。点右上角「上传码表」建立档案" />
-          ),
+          emptyText: <Empty description="该客户还没有码表。点右上角「上传码表」建立档案" />,
         }}
       />
 
@@ -298,6 +313,6 @@ export default function CustomerDetailPage() {
         onClose={() => setUploadOpen(false)}
         onUploaded={() => void load()}
       />
-    </Space>
+    </div>
   )
 }

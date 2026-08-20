@@ -4,21 +4,14 @@
  */
 
 import { history } from '@umijs/max'
-import {
-  ModalForm,
-  ProFormText,
-  ProTable,
-} from '@ant-design/pro-components'
+import { ModalForm, ProFormText, ProTable } from '@ant-design/pro-components'
 import type { ProColumns } from '@ant-design/pro-components'
 import { Button, message, Tag, Typography } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
-import type {
-  AdminCreateTenantRequest,
-  AdminTenantRow,
-  TenantStatus,
-} from '@dmc/contracts'
+import type { AdminCreateTenantRequest, AdminTenantRow, TenantStatus } from '@dmc/contracts'
 import { createTenant, listTenants } from '@/services/admin'
 import { getErrorMessage } from '@/lib/errorMsg'
+import { WorkspaceTableTitle } from '@/components/WorkspacePage'
 
 const STATUS_META: Record<TenantStatus, { text: string; color: string }> = {
   trial: { text: '试用中', color: 'blue' },
@@ -27,10 +20,7 @@ const STATUS_META: Record<TenantStatus, { text: string; color: string }> = {
   disabled: { text: '已停用', color: 'red' },
 }
 
-const INVITED_BY_META: Record<
-  'company' | 'referral',
-  { text: string; color: string }
-> = {
+const INVITED_BY_META: Record<'company' | 'referral', { text: string; color: string }> = {
   company: { text: '公司邀请', color: 'default' },
   referral: { text: '推荐注册', color: 'cyan' },
 }
@@ -96,11 +86,7 @@ function CreateTenantModal({ onSuccess }: { onSuccess: () => void }) {
         rules={[{ max: 20 }]}
       />
       <ProFormText name="region" label="地区" placeholder="选填,例:广东深圳" />
-      <ProFormText
-        name="exportCategory"
-        label="出口品类"
-        placeholder="选填,例:罐头/酒水"
-      />
+      <ProFormText name="exportCategory" label="出口品类" placeholder="选填,例:罐头/酒水" />
     </ModalForm>
   )
 }
@@ -145,10 +131,7 @@ const columns: ProColumns<AdminTenantRow>[] = [
     width: 100,
     valueType: 'select',
     valueEnum: Object.fromEntries(
-      Object.entries(STATUS_META).map(([k, v]) => [
-        k,
-        { text: v.text, status: v.color },
-      ]),
+      Object.entries(STATUS_META).map(([k, v]) => [k, { text: v.text, status: v.color }]),
     ),
     render: (_, row) => {
       const m = STATUS_META[row.status]
@@ -183,36 +166,37 @@ const columns: ProColumns<AdminTenantRow>[] = [
 
 export default function TenantsPage() {
   return (
-    <ProTable<AdminTenantRow>
-      headerTitle="工厂管理"
-      columns={columns}
-      rowKey="id"
-      scroll={{ x: 1100 }}
-      pagination={{ pageSize: 20, showSizeChanger: false }}
-      search={{ labelWidth: 80, defaultCollapsed: false }}
-      // 用 toolBarRender 的 action 参数(ProTable 注入)而非 actionRef,
-      // 避免 modal 关闭瞬间 ref 还没 attach 的时序 bug
-      toolBarRender={(action) => [
-        <CreateTenantModal
-          key="create"
-          onSuccess={() => action?.reloadAndRest?.()}
-        />,
-      ]}
-      request={async (params) => {
-        const resp = await listTenants({
-          page: params.current ?? 1,
-          pageSize: params.pageSize ?? 20,
-          search: (params.name as string | undefined) || undefined,
-          status: (params.status as TenantStatus | undefined) || undefined,
-        })
-        return { data: resp.items, total: resp.total, success: true }
-      }}
-      options={{
-        density: true,
-        fullScreen: true,
-        reload: true,
-        setting: true,
-      }}
-    />
+    <div className="dmc-page-stack">
+      <ProTable<AdminTenantRow>
+        headerTitle={
+          <WorkspaceTableTitle title="工厂列表" description="按名称、手机号或订阅状态定位租户" />
+        }
+        columns={columns}
+        rowKey="id"
+        scroll={{ x: 1100 }}
+        pagination={{ pageSize: 20, showSizeChanger: false }}
+        search={{ labelWidth: 80, defaultCollapsed: false }}
+        // 用 toolBarRender 的 action 参数(ProTable 注入)而非 actionRef,
+        // 避免 modal 关闭瞬间 ref 还没 attach 的时序 bug
+        toolBarRender={(action) => [
+          <CreateTenantModal key="create" onSuccess={() => action?.reloadAndRest?.()} />,
+        ]}
+        request={async (params) => {
+          const resp = await listTenants({
+            page: params.current ?? 1,
+            pageSize: params.pageSize ?? 20,
+            search: (params.name as string | undefined) || undefined,
+            status: (params.status as TenantStatus | undefined) || undefined,
+          })
+          return { data: resp.items, total: resp.total, success: true }
+        }}
+        options={{
+          density: true,
+          fullScreen: true,
+          reload: true,
+          setting: true,
+        }}
+      />
+    </div>
   )
 }

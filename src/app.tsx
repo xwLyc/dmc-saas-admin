@@ -7,6 +7,8 @@
 
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max'
 import { history, useLocation } from '@umijs/max'
+import { useContext } from 'react'
+import { RouteContext } from '@ant-design/pro-components'
 import { Avatar, Dropdown } from 'antd'
 import {
   DownOutlined,
@@ -80,6 +82,22 @@ function ShellHeaderContext() {
   )
 }
 
+function ShellBrandHeader() {
+  const { collapsed } = useContext(RouteContext)
+
+  return (
+    <div className={`dmc-shell-brand dmc-shell-brand-header${collapsed ? ' is-collapsed' : ''}`}>
+      <img src="/dmc-admin/favicon.svg" alt="" className="dmc-shell-logo" />
+      {!collapsed && (
+        <div className="dmc-shell-brand-copy">
+          <div className="dmc-shell-name">DMC</div>
+          <div className="dmc-shell-edition">OPERATIONS</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ───── 启动:从 localStorage 恢复登录态 ─────
 export async function getInitialState(): Promise<InitialState> {
   const token = getToken()
@@ -130,15 +148,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   menu: { locale: false },
   onMenuHeaderClick: () => history.push('/dashboard'),
   menuHeaderRender: false,
-  headerTitleRender: () => (
-    <div className="dmc-shell-brand dmc-shell-brand-header">
-      <img src="/dmc-admin/favicon.svg" alt="" className="dmc-shell-logo" />
-      <div className="dmc-shell-brand-copy">
-        <div className="dmc-shell-name">DMC</div>
-        <div className="dmc-shell-edition">OPERATIONS</div>
-      </div>
-    </div>
-  ),
+  headerTitleRender: () => <ShellBrandHeader />,
   menuExtraRender: (props) =>
     props?.collapsed ? null : <div className="dmc-menu-label">运营工作台</div>,
   menuFooterRender: (props) =>

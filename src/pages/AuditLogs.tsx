@@ -18,6 +18,7 @@ import type {
   TenantStatus,
 } from '@dmc/contracts'
 import { listAuditLogs } from '@/services/admin'
+import { WorkspaceTableTitle } from '@/components/WorkspacePage'
 
 const ACTION_META: Record<AuditAction, { text: string; color: string }> = {
   'admin.login': { text: 'admin 登录', color: 'default' },
@@ -138,28 +139,37 @@ const columns: ProColumns<AdminAuditLog>[] = [
 
 export default function AuditLogsPage() {
   return (
-    <ProTable<AdminAuditLog, AdminListAuditLogsQuery>
-      columns={columns}
-      rowKey="id"
-      headerTitle="操作记录"
-      search={{ labelWidth: 'auto' }}
-      pagination={{ pageSize: 20 }}
-      request={async (params) => {
-        const { current = 1, pageSize = 20, adminId, targetType, targetId, action } = params as Record<string, unknown>
-        const resp = await listAuditLogs({
-          page: Number(current),
-          pageSize: Number(pageSize),
-          adminId: adminId as string | undefined,
-          targetType: targetType as 'tenant' | 'admin' | undefined,
-          targetId: targetId as string | undefined,
-          action: action as AuditAction | undefined,
-        })
-        return {
-          data: resp.items,
-          total: resp.total,
-          success: true,
-        }
-      }}
-    />
+    <div className="dmc-page-stack">
+      <ProTable<AdminAuditLog, AdminListAuditLogsQuery>
+        columns={columns}
+        rowKey="id"
+        headerTitle={<WorkspaceTableTitle title="操作流水" description="记录按发生时间倒序排列" />}
+        search={{ labelWidth: 'auto' }}
+        pagination={{ pageSize: 20 }}
+        request={async (params) => {
+          const {
+            current = 1,
+            pageSize = 20,
+            adminId,
+            targetType,
+            targetId,
+            action,
+          } = params as Record<string, unknown>
+          const resp = await listAuditLogs({
+            page: Number(current),
+            pageSize: Number(pageSize),
+            adminId: adminId as string | undefined,
+            targetType: targetType as 'tenant' | 'admin' | undefined,
+            targetId: targetId as string | undefined,
+            action: action as AuditAction | undefined,
+          })
+          return {
+            data: resp.items,
+            total: resp.total,
+            success: true,
+          }
+        }}
+      />
+    </div>
   )
 }

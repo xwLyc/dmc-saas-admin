@@ -11,18 +11,40 @@
 
 import { useState, useMemo, useRef } from 'react'
 import {
-  Card, Button, Upload, Steps, Table, Tag, Space, Alert, Typography,
-  message, Statistic, Row, Col, Progress, Tooltip, Collapse,
+  Card,
+  Button,
+  Upload,
+  Steps,
+  Table,
+  Tag,
+  Space,
+  Alert,
+  Typography,
+  message,
+  Statistic,
+  Row,
+  Col,
+  Progress,
+  Tooltip,
+  Collapse,
 } from 'antd'
 import type { UploadProps } from 'antd'
 import {
-  CloudUploadOutlined, CheckCircleOutlined, CloseCircleOutlined,
-  LoadingOutlined, DownloadOutlined, ReloadOutlined,
-  ExclamationCircleOutlined, FileSearchOutlined, ClockCircleOutlined,
-  FolderOpenOutlined, PlayCircleOutlined,
+  CloudUploadOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  LoadingOutlined,
+  DownloadOutlined,
+  ReloadOutlined,
+  ExclamationCircleOutlined,
+  FileSearchOutlined,
+  ClockCircleOutlined,
+  FolderOpenOutlined,
+  PlayCircleOutlined,
 } from '@ant-design/icons'
 import { parseDmcFile, type ParsedDmcFile } from '@/lib/dmc/parseFile'
 import { recognizeDmc } from '@/services/dmcRecognize'
+import { WorkspaceTableTitle } from '@/components/WorkspacePage'
 
 type Phase = 'upload-source' | 'pick-scan' | 'recognizing' | 'result'
 
@@ -129,33 +151,63 @@ export default function DmcRecognizeComparePage() {
       const task = tasks[i]
       const startedAt = Date.now()
       // mark decoding
-      setTasks((prev) => prev.map((t, idx) => idx === i ? {
-        ...t, status: 'decoding', startedAt, pagesDone: 0, pagesTotal: undefined,
-      } : t))
+      setTasks((prev) =>
+        prev.map((t, idx) =>
+          idx === i
+            ? {
+                ...t,
+                status: 'decoding',
+                startedAt,
+                pagesDone: 0,
+                pagesTotal: undefined,
+              }
+            : t,
+        ),
+      )
       try {
         const result = await recognizeDmc(task.file, {
           onProgress: (p) => {
             // 把页进度合并到任务上,React 18 batch 自动合并相邻 setState
-            setTasks((prev) => prev.map((t, idx) => idx === i ? {
-              ...t, pagesDone: p.page, pagesTotal: p.total,
-            } : t))
+            setTasks((prev) =>
+              prev.map((t, idx) =>
+                idx === i
+                  ? {
+                      ...t,
+                      pagesDone: p.page,
+                      pagesTotal: p.total,
+                    }
+                  : t,
+              ),
+            )
           },
         })
-        setTasks((prev) => prev.map((t, idx) => idx === i ? {
-          ...t,
-          status: 'done',
-          codes: result.codes,
-          pages: result.pages,
-          pagesDone: result.pages,
-          pagesTotal: result.pages,
-          durationMs: result.durationMs,
-        } : t))
+        setTasks((prev) =>
+          prev.map((t, idx) =>
+            idx === i
+              ? {
+                  ...t,
+                  status: 'done',
+                  codes: result.codes,
+                  pages: result.pages,
+                  pagesDone: result.pages,
+                  pagesTotal: result.pages,
+                  durationMs: result.durationMs,
+                }
+              : t,
+          ),
+        )
       } catch (err) {
-        setTasks((prev) => prev.map((t, idx) => idx === i ? {
-          ...t,
-          status: 'failed',
-          error: err instanceof Error ? err.message : '识别失败',
-        } : t))
+        setTasks((prev) =>
+          prev.map((t, idx) =>
+            idx === i
+              ? {
+                  ...t,
+                  status: 'failed',
+                  error: err instanceof Error ? err.message : '识别失败',
+                }
+              : t,
+          ),
+        )
       }
     }
 
@@ -165,16 +217,14 @@ export default function DmcRecognizeComparePage() {
   // ─── Step 3: 汇总 codes + 计算 diff ───
   // 按文件分组保留 codes,让 diff 能定位 重复/多余 来自哪个 PDF
   const scannedByFile = useMemo(
-    () => tasks
-      .filter((t) => t.status === 'done')
-      .map((t) => ({ file: t.file.name, codes: t.codes ?? [] })),
+    () =>
+      tasks
+        .filter((t) => t.status === 'done')
+        .map((t) => ({ file: t.file.name, codes: t.codes ?? [] })),
     [tasks],
   )
 
-  const allScannedCodes = useMemo(
-    () => scannedByFile.flatMap((f) => f.codes),
-    [scannedByFile],
-  )
+  const allScannedCodes = useMemo(() => scannedByFile.flatMap((f) => f.codes), [scannedByFile])
 
   const diff = useMemo<DiffResult | null>(() => {
     if (!parsedSource || phase !== 'result') return null
@@ -186,10 +236,7 @@ export default function DmcRecognizeComparePage() {
     [tasks],
   )
 
-  const totalPages = useMemo(
-    () => tasks.reduce((sum, t) => sum + (t.pages ?? 0), 0),
-    [tasks],
-  )
+  const totalPages = useMemo(() => tasks.reduce((sum, t) => sum + (t.pages ?? 0), 0), [tasks])
 
   const handleReset = () => {
     setPhase('upload-source')
@@ -199,92 +246,94 @@ export default function DmcRecognizeComparePage() {
   }
 
   const stepIndex =
-    phase === 'upload-source' ? 0 :
-    phase === 'pick-scan' || phase === 'recognizing' ? 1 :
-    2
+    phase === 'upload-source' ? 0 : phase === 'pick-scan' || phase === 'recognizing' ? 1 : 2
 
   const doneCount = tasks.filter((t) => t.status === 'done').length
   const failedCount = tasks.filter((t) => t.status === 'failed').length
 
   return (
-    <Card
-      title={
-        <span>
-          DMC 识别对比
-          <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 12 }}>
-            上传源码 + 一或多份 DMC PDF/图片(支持拖文件夹),自动识别并比对一致性
-          </Typography.Text>
-        </span>
-      }
-      extra={phase !== 'upload-source' && (
-        <Button icon={<ReloadOutlined />} onClick={handleReset}>重新开始</Button>
-      )}
-      styles={{ body: { padding: 24 } }}
-    >
-      <Steps
-        current={stepIndex}
-        items={[
-          { title: '上传源码', description: parsedSource ? `${parsedSource.total} 条` : 'csv/txt/xlsx' },
-          { title: '上传 DMC 文件', description: tasks.length ? `${tasks.length} 个文件` : 'pdf/图片,可多选' },
-          { title: '对比结果', description: diff ? `识别 ${allScannedCodes.length} 条` : '' },
-        ]}
-        style={{ marginBottom: 32 }}
-      />
-
-      {phase === 'upload-source' && (
-        <SourceUploadStep onFile={handleSourceFile} resetKey={fileInputResetKey.current} />
-      )}
-
-      {phase === 'pick-scan' && parsedSource && (
-        <PickScanStep
-          parsedSource={parsedSource}
-          tasks={tasks}
-          onAddFiles={handleAddFiles}
-          onRemoveTask={handleRemoveTask}
-          onClearTasks={handleClearTasks}
-          onStart={handleStartRecognize}
-          resetKey={fileInputResetKey.current}
+    <div className="dmc-page-stack">
+      <Card
+        className="dmc-workflow-card"
+        title={<WorkspaceTableTitle title="识别流程" description="上传源码、批量识别、核对差异" />}
+        extra={
+          phase !== 'upload-source' && (
+            <Button icon={<ReloadOutlined />} onClick={handleReset}>
+              重新开始
+            </Button>
+          )
+        }
+      >
+        <Steps
+          className="dmc-workflow-steps"
+          current={stepIndex}
+          items={[
+            {
+              title: '上传源码',
+              description: parsedSource ? `${parsedSource.total} 条` : 'csv/txt/xlsx',
+            },
+            {
+              title: '上传 DMC 文件',
+              description: tasks.length ? `${tasks.length} 个文件` : 'pdf/图片,可多选',
+            },
+            { title: '对比结果', description: diff ? `识别 ${allScannedCodes.length} 条` : '' },
+          ]}
+          style={{ marginBottom: 32 }}
         />
-      )}
 
-      {phase === 'recognizing' && (
-        <RecognizingView
-          tasks={tasks}
-          doneCount={doneCount}
-          failedCount={failedCount}
-        />
-      )}
+        {phase === 'upload-source' && (
+          <SourceUploadStep onFile={handleSourceFile} resetKey={fileInputResetKey.current} />
+        )}
 
-      {phase === 'result' && diff && parsedSource && (
-        <ResultView
-          parsedSource={parsedSource}
-          tasks={tasks}
-          allScannedCodes={allScannedCodes}
-          totalPages={totalPages}
-          totalDuration={totalDuration}
-          doneCount={doneCount}
-          failedCount={failedCount}
-          diff={diff}
-        />
-      )}
-    </Card>
+        {phase === 'pick-scan' && parsedSource && (
+          <PickScanStep
+            parsedSource={parsedSource}
+            tasks={tasks}
+            onAddFiles={handleAddFiles}
+            onRemoveTask={handleRemoveTask}
+            onClearTasks={handleClearTasks}
+            onStart={handleStartRecognize}
+            resetKey={fileInputResetKey.current}
+          />
+        )}
+
+        {phase === 'recognizing' && (
+          <RecognizingView tasks={tasks} doneCount={doneCount} failedCount={failedCount} />
+        )}
+
+        {phase === 'result' && diff && parsedSource && (
+          <ResultView
+            parsedSource={parsedSource}
+            tasks={tasks}
+            allScannedCodes={allScannedCodes}
+            totalPages={totalPages}
+            totalDuration={totalDuration}
+            doneCount={doneCount}
+            failedCount={failedCount}
+            diff={diff}
+          />
+        )}
+      </Card>
+    </div>
   )
 }
 
 // ───────────── Step 1 ─────────────
 
-function SourceUploadStep({
-  onFile, resetKey,
-}: { onFile: (f: File) => void; resetKey: number }) {
+function SourceUploadStep({ onFile, resetKey }: { onFile: (f: File) => void; resetKey: number }) {
   const props: UploadProps = {
     accept: '.csv,.txt,.xlsx,.xls',
     showUploadList: false,
-    beforeUpload: (file) => { onFile(file); return false },
+    beforeUpload: (file) => {
+      onFile(file)
+      return false
+    },
   }
   return (
     <div>
       <Alert
-        type="info" showIcon
+        type="info"
+        showIcon
         message="第 1 步:上传源码"
         description="上传客户提供的码表 (csv / txt / xlsx)。多列文件会自动识别 DMC 列,首行表头会自动跳过。"
         style={{ marginBottom: 16 }}
@@ -303,7 +352,13 @@ function SourceUploadStep({
 // ───────────── Step 2 ─────────────
 
 function PickScanStep({
-  parsedSource, tasks, onAddFiles, onRemoveTask, onClearTasks, onStart, resetKey,
+  parsedSource,
+  tasks,
+  onAddFiles,
+  onRemoveTask,
+  onClearTasks,
+  onStart,
+  resetKey,
 }: {
   parsedSource: ParsedDmcFile
   tasks: FileTask[]
@@ -342,12 +397,14 @@ function PickScanStep({
   return (
     <div>
       <Alert
-        type="success" showIcon
+        type="success"
+        showIcon
         message={`第 1 步完成:已解析源码 ${parsedSource.total} 条 (${parsedSource.filename})`}
         style={{ marginBottom: 16 }}
       />
       <Alert
-        type="info" showIcon
+        type="info"
+        showIcon
         message="第 2 步:选择要识别的 DMC PDF / 图片"
         description="可以多次选择追加,也可以直接拖一整个文件夹进来。单文件 ≤25MB,只接 PDF / PNG / JPG 等。"
         style={{ marginBottom: 16 }}
@@ -359,8 +416,12 @@ function PickScanStep({
             <p className="ant-upload-drag-icon" style={{ margin: 0 }}>
               <FileSearchOutlined style={{ color: '#316eea', fontSize: 32 }} />
             </p>
-            <p className="ant-upload-text" style={{ fontSize: 13 }}>选择多个文件</p>
-            <p className="ant-upload-hint" style={{ fontSize: 11 }}>按住 Cmd/Ctrl 多选</p>
+            <p className="ant-upload-text" style={{ fontSize: 13 }}>
+              选择多个文件
+            </p>
+            <p className="ant-upload-hint" style={{ fontSize: 11 }}>
+              按住 Cmd/Ctrl 多选
+            </p>
           </Upload.Dragger>
         </Col>
         <Col span={12}>
@@ -368,8 +429,12 @@ function PickScanStep({
             <p className="ant-upload-drag-icon" style={{ margin: 0 }}>
               <FolderOpenOutlined style={{ color: '#316eea', fontSize: 32 }} />
             </p>
-            <p className="ant-upload-text" style={{ fontSize: 13 }}>选择整个文件夹</p>
-            <p className="ant-upload-hint" style={{ fontSize: 11 }}>非 PDF/图片会自动忽略</p>
+            <p className="ant-upload-text" style={{ fontSize: 13 }}>
+              选择整个文件夹
+            </p>
+            <p className="ant-upload-hint" style={{ fontSize: 11 }}>
+              非 PDF/图片会自动忽略
+            </p>
           </Upload.Dragger>
         </Col>
       </Row>
@@ -387,11 +452,10 @@ function PickScanStep({
           }
           extra={
             <Space>
-              <Button size="small" onClick={onClearTasks}>清空</Button>
-              <Button
-                size="small" type="primary" icon={<PlayCircleOutlined />}
-                onClick={onStart}
-              >
+              <Button size="small" onClick={onClearTasks}>
+                清空
+              </Button>
+              <Button size="small" type="primary" icon={<PlayCircleOutlined />} onClick={onStart}>
                 开始识别 ({tasks.length})
               </Button>
             </Space>
@@ -408,7 +472,9 @@ function PickScanStep({
 // ───────────── Recognizing ─────────────
 
 function RecognizingView({
-  tasks, doneCount, failedCount,
+  tasks,
+  doneCount,
+  failedCount,
 }: {
   tasks: FileTask[]
   doneCount: number
@@ -422,7 +488,8 @@ function RecognizingView({
   return (
     <div>
       <Alert
-        type="info" showIcon
+        type="info"
+        showIcon
         message={
           <span>
             正在识别第 {finished + (current ? 1 : 0)} / {total} 个文件
@@ -447,8 +514,14 @@ function RecognizingView({
 // ───────────── Step 3 ─────────────
 
 function ResultView({
-  parsedSource, tasks, allScannedCodes, totalPages, totalDuration,
-  doneCount, failedCount, diff,
+  parsedSource,
+  tasks,
+  allScannedCodes,
+  totalPages,
+  totalDuration,
+  doneCount,
+  failedCount,
+  diff,
 }: {
   parsedSource: ParsedDmcFile
   tasks: FileTask[]
@@ -469,14 +542,16 @@ function ResultView({
     <div>
       {allMatched ? (
         <Alert
-          type="success" showIcon
+          type="success"
+          showIcon
           message="完全一致 ✓"
           description={`源码 ${parsedSource.total} 条 ↔ 识别 ${allScannedCodes.length} 条,全部匹配。`}
           style={{ marginBottom: 16 }}
         />
       ) : (
         <Alert
-          type="warning" showIcon
+          type="warning"
+          showIcon
           message="发现差异"
           description={
             <span>
@@ -522,8 +597,10 @@ function ResultView({
               title="✗ 缺失 + 多余 + 重复"
               value={diff.missing.length + diff.extra.length + diff.duplicates.length}
               valueStyle={{
-                color: diff.missing.length + diff.extra.length + diff.duplicates.length > 0
-                  ? '#ff4d4f' : '#52c41a',
+                color:
+                  diff.missing.length + diff.extra.length + diff.duplicates.length > 0
+                    ? '#ff4d4f'
+                    : '#52c41a',
               }}
             />
           </Card>
@@ -542,11 +619,13 @@ function ResultView({
       <Collapse
         size="small"
         style={{ marginBottom: 16 }}
-        items={[{
-          key: 'per-file',
-          label: <span>识别明细 (每文件)</span>,
-          children: <FileTaskTable tasks={tasks} />,
-        }]}
+        items={[
+          {
+            key: 'per-file',
+            label: <span>识别明细 (每文件)</span>,
+            children: <FileTaskTable tasks={tasks} />,
+          },
+        ]}
       />
 
       <DiffTable
@@ -567,7 +646,9 @@ function ResultView({
         tone="warning"
         desc="同一个码在 PDF/图片里识别出多次"
         rows={diff.duplicates.map((d) => ({
-          code: d.code, count: d.count, occurrences: d.occurrences,
+          code: d.code,
+          count: d.count,
+          occurrences: d.occurrences,
         }))}
         countCol
         sourceCol
@@ -586,7 +667,9 @@ function ResultView({
 // ───────────── 文件任务表 ─────────────
 
 function FileTaskTable({
-  tasks, onRemove, removable,
+  tasks,
+  onRemove,
+  removable,
 }: {
   tasks: FileTask[]
   onRemove?: (id: string) => void
@@ -600,7 +683,8 @@ function FileTaskTable({
       pagination={tasks.length > 10 ? { pageSize: 10 } : false}
       columns={[
         {
-          title: '#', width: 50,
+          title: '#',
+          width: 50,
           render: (_v, _r, idx) => idx + 1,
         },
         {
@@ -614,7 +698,8 @@ function FileTaskTable({
           ),
         },
         {
-          title: '大小', width: 90,
+          title: '大小',
+          width: 90,
           render: (_v, r: FileTask) => (
             <Typography.Text type="secondary" style={{ fontSize: 11 }}>
               {formatBytes(r.file.size)}
@@ -622,21 +707,28 @@ function FileTaskTable({
           ),
         },
         {
-          title: '状态', width: 160,
+          title: '状态',
+          width: 160,
           render: (_v, r: FileTask) => <StatusTag task={r} />,
         },
         {
-          title: '进度 / 结果', width: 240,
+          title: '进度 / 结果',
+          width: 240,
           render: (_v, r: FileTask) => <ProgressOrResultCell task={r} />,
         },
-        ...(removable ? [{
-          title: '', width: 60,
-          render: (_v: unknown, r: FileTask) => (
-            <Button size="small" type="link" danger onClick={() => onRemove?.(r.id)}>
-              移除
-            </Button>
-          ),
-        }] : []),
+        ...(removable
+          ? [
+              {
+                title: '',
+                width: 60,
+                render: (_v: unknown, r: FileTask) => (
+                  <Button size="small" type="link" danger onClick={() => onRemove?.(r.id)}>
+                    移除
+                  </Button>
+                ),
+              },
+            ]
+          : []),
       ]}
     />
   )
@@ -648,15 +740,26 @@ function StatusTag({ task }: { task: FileTask }) {
   }
   if (task.status === 'decoding') {
     // 解码中:显示当前页 / 总页数(后端 progress 推过来)。pagesTotal 未知前先显 "识别中"。
-    const label = task.pagesTotal != null
-      ? `识别中 ${task.pagesDone ?? 0}/${task.pagesTotal}`
-      : '识别中…'
-    return <Tag color="processing" icon={<LoadingOutlined spin />}>{label}</Tag>
+    const label =
+      task.pagesTotal != null ? `识别中 ${task.pagesDone ?? 0}/${task.pagesTotal}` : '识别中…'
+    return (
+      <Tag color="processing" icon={<LoadingOutlined spin />}>
+        {label}
+      </Tag>
+    )
   }
   if (task.status === 'done') {
-    return <Tag color="success" icon={<CheckCircleOutlined />}>完成</Tag>
+    return (
+      <Tag color="success" icon={<CheckCircleOutlined />}>
+        完成
+      </Tag>
+    )
   }
-  return <Tag color="error" icon={<CloseCircleOutlined />}>失败</Tag>
+  return (
+    <Tag color="error" icon={<CloseCircleOutlined />}>
+      失败
+    </Tag>
+  )
 }
 
 /**
@@ -703,7 +806,11 @@ function ProgressOrResultCell({ task }: { task: FileTask }) {
       </div>
     )
   }
-  return <Typography.Text type="secondary" style={{ fontSize: 11 }}>—</Typography.Text>
+  return (
+    <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+      —
+    </Typography.Text>
+  )
 }
 
 /** 用已用时间 + 已完成页数推剩余时间。done==0 / total 未知 → null */
@@ -718,7 +825,13 @@ function computeEta(task: FileTask): string | null {
 // ───────────── Diff 子表(沿用原版) ─────────────
 
 function DiffTable({
-  title, tone, desc, rows, countCol, sourceCol, collapsed,
+  title,
+  tone,
+  desc,
+  rows,
+  countCol,
+  sourceCol,
+  collapsed,
 }: {
   title: string
   tone: 'success' | 'warning' | 'error'
@@ -731,9 +844,14 @@ function DiffTable({
 }) {
   const [open, setOpen] = useState(!collapsed)
   const tagColor = tone === 'success' ? 'success' : tone === 'warning' ? 'warning' : 'error'
-  const icon = tone === 'success' ? <CheckCircleOutlined /> :
-               tone === 'error' ? <CloseCircleOutlined /> :
-               <ExclamationCircleOutlined />
+  const icon =
+    tone === 'success' ? (
+      <CheckCircleOutlined />
+    ) : tone === 'error' ? (
+      <CloseCircleOutlined />
+    ) : (
+      <ExclamationCircleOutlined />
+    )
 
   return (
     <Card
@@ -741,9 +859,13 @@ function DiffTable({
       style={{ marginBottom: 12 }}
       title={
         <Space>
-          <Tag color={tagColor} icon={icon}>{title}</Tag>
+          <Tag color={tagColor} icon={icon}>
+            {title}
+          </Tag>
           <Typography.Text strong>{rows.length}</Typography.Text>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>{desc}</Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {desc}
+          </Typography.Text>
         </Space>
       }
       extra={
@@ -755,7 +877,9 @@ function DiffTable({
       }
     >
       {rows.length === 0 ? (
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>—</Typography.Text>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          —
+        </Typography.Text>
       ) : open ? (
         <Table
           dataSource={rows}
@@ -765,7 +889,9 @@ function DiffTable({
           columns={[
             { title: '#', width: 60, render: (_v, _r, i) => i + 1 },
             {
-              title: 'DMC 码', dataIndex: 'code', ellipsis: true,
+              title: 'DMC 码',
+              dataIndex: 'code',
+              ellipsis: true,
               render: (c: string) => (
                 <Typography.Text code copyable={{ text: c }} style={{ fontSize: 11 }}>
                   {c.length > 80 ? c.slice(0, 80) + '...' : c}
@@ -773,12 +899,17 @@ function DiffTable({
               ),
             },
             ...(countCol ? [{ title: '出现次数', dataIndex: 'count', width: 100 }] : []),
-            ...(sourceCol ? [{
-              title: '来源 PDF', width: 320,
-              render: (_v: unknown, r: { occurrences?: CodeOccurrence[] }) => (
-                <SourceFilesCell occurrences={r.occurrences ?? []} />
-              ),
-            }] : []),
+            ...(sourceCol
+              ? [
+                  {
+                    title: '来源 PDF',
+                    width: 320,
+                    render: (_v: unknown, r: { occurrences?: CodeOccurrence[] }) => (
+                      <SourceFilesCell occurrences={r.occurrences ?? []} />
+                    ),
+                  },
+                ]
+              : []),
           ]}
         />
       ) : null}
@@ -789,7 +920,11 @@ function DiffTable({
 /** 渲染码的来源 PDF 列表:多个文件分行,后跟次数。鼠标 hover tooltip 显示完整文件名 */
 function SourceFilesCell({ occurrences }: { occurrences: CodeOccurrence[] }) {
   if (occurrences.length === 0) {
-    return <Typography.Text type="secondary" style={{ fontSize: 11 }}>—</Typography.Text>
+    return (
+      <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+        —
+      </Typography.Text>
+    )
   }
   return (
     <Space direction="vertical" size={2} style={{ width: '100%' }}>
@@ -798,7 +933,10 @@ function SourceFilesCell({ occurrences }: { occurrences: CodeOccurrence[] }) {
           <Typography.Text style={{ fontSize: 11 }} ellipsis={{ tooltip: false }}>
             {o.file}
             {o.count > 1 && (
-              <Typography.Text type="warning" style={{ fontSize: 11, marginLeft: 6, fontWeight: 600 }}>
+              <Typography.Text
+                type="warning"
+                style={{ fontSize: 11, marginLeft: 6, fontWeight: 600 }}
+              >
                 × {o.count}
               </Typography.Text>
             )}

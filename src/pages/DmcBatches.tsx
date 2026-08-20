@@ -8,12 +8,13 @@
  */
 
 import { useState, useMemo, useRef, useEffect } from 'react'
-import {
-  Card, Button, Upload, Steps, Input, Alert, Typography, message, Spin, Select,
-} from 'antd'
+import { Card, Button, Upload, Steps, Input, Alert, Typography, message, Spin, Select } from 'antd'
 import type { UploadProps } from 'antd'
 import {
-  CloudUploadOutlined, CheckCircleOutlined, ReloadOutlined, RightOutlined,
+  CloudUploadOutlined,
+  CheckCircleOutlined,
+  ReloadOutlined,
+  RightOutlined,
 } from '@ant-design/icons'
 import { parseDmcFile, exportSeqDmc, type ParsedDmcFile } from '@/lib/dmc/parseFile'
 import { analyzeDmcCodes } from '@/lib/dmc/validate'
@@ -29,6 +30,7 @@ import type {
 } from '@dmc/contracts'
 import { AnalysisView, ConfigureView } from './dmc/shared'
 import { DuplicateReportView } from './dmc/DuplicateReport'
+import { WorkspaceTableTitle } from '@/components/WorkspacePage'
 
 // dup-checking / dup-failed:选了客户才有的两步——跟该客户历史码表比对。
 // 没选客户就没有比对基准,直接进 configure(跟老流程一致)。
@@ -166,32 +168,38 @@ export default function DmcBatchesPage() {
   const uploadProps: UploadProps = {
     accept: '.csv,.txt,.xlsx,.xls',
     showUploadList: false,
-    beforeUpload: (file) => { handleFile(file); return false },
+    beforeUpload: (file) => {
+      handleFile(file)
+      return false
+    },
   }
 
   const stepIndex =
-    phase === 'select-tenant' ? 0
-    : phase === 'upload' || phase === 'analyzing' || phase === 'failed'
-      || phase === 'dup-checking' || phase === 'dup-failed' ? 1
-    : 2
+    phase === 'select-tenant'
+      ? 0
+      : phase === 'upload' ||
+          phase === 'analyzing' ||
+          phase === 'failed' ||
+          phase === 'dup-checking' ||
+          phase === 'dup-failed'
+        ? 1
+        : 2
 
   return (
-    <div>
+    <div className="dmc-page-stack">
       <Card
-        title={
-          <span>
-            DMC 码表生成工具
-            <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 12 }}>
-              客户给的纯 DMC 配序号 → 分发给标签厂 + 工厂，三方对齐
-            </Typography.Text>
-          </span>
+        className="dmc-workflow-card"
+        title={<WorkspaceTableTitle title="处理流程" description="关联对象、校验查重、配置导出" />}
+        extra={
+          phase !== 'select-tenant' && (
+            <Button icon={<ReloadOutlined />} onClick={handleReset}>
+              重新开始
+            </Button>
+          )
         }
-        extra={phase !== 'select-tenant' && (
-          <Button icon={<ReloadOutlined />} onClick={handleReset}>重新开始</Button>
-        )}
-        styles={{ body: { padding: 24 } }}
       >
         <Steps
+          className="dmc-workflow-steps"
           current={stepIndex}
           items={[
             { title: '关联工厂 + 客户' },
@@ -209,7 +217,11 @@ export default function DmcBatchesPage() {
             selectedCustomer={selectedCustomer}
             onSelectCustomer={setSelectedCustomer}
             onNext={() => setPhase('upload')}
-            onSkip={() => { setSelectedTenant(null); setSelectedCustomer(null); setPhase('upload') }}
+            onSkip={() => {
+              setSelectedTenant(null)
+              setSelectedCustomer(null)
+              setPhase('upload')
+            }}
           />
         )}
 
@@ -245,7 +257,8 @@ export default function DmcBatchesPage() {
               </p>
               <p className="ant-upload-text">点击或拖拽文件到这里上传</p>
               <p className="ant-upload-hint">
-                支持 CSV / XLSX / XLS。文件应包含一列 DMC 码（列名可以是 "DMC" / "DMC码" / "code" 或纯无表头）。
+                支持 CSV / XLSX / XLS。文件应包含一列 DMC 码（列名可以是 "DMC" / "DMC码" / "code"
+                或纯无表头）。
               </p>
             </Upload.Dragger>
           </div>
@@ -302,7 +315,12 @@ export default function DmcBatchesPage() {
 // ─── Step 1: 关联工厂 + 俄罗斯客户 ───
 
 function SelectTenantStep({
-  selected, onSelect, selectedCustomer, onSelectCustomer, onNext, onSkip,
+  selected,
+  onSelect,
+  selectedCustomer,
+  onSelectCustomer,
+  onNext,
+  onSkip,
 }: {
   selected: AdminTenantRow | null
   onSelect: (t: AdminTenantRow | null) => void
@@ -370,9 +388,7 @@ function SelectTenantStep({
             label: c.shortName ? `${c.name}（${c.shortName}）` : c.name,
           }))}
           notFoundContent={
-            <Typography.Text type="secondary">
-              还没有客户，先去「俄罗斯客户」页新建
-            </Typography.Text>
+            <Typography.Text type="secondary">还没有客户，先去「俄罗斯客户」页新建</Typography.Text>
           }
         />
         {selectedCustomer && (
@@ -395,9 +411,20 @@ function SelectTenantStep({
       </div>
 
       {loading ? (
-        <div style={{ padding: 40, textAlign: 'center' }}><Spin /></div>
+        <div style={{ padding: 40, textAlign: 'center' }}>
+          <Spin />
+        </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20, maxHeight: 360, overflowY: 'auto' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            marginBottom: 20,
+            maxHeight: 360,
+            overflowY: 'auto',
+          }}
+        >
           {tenants.map((t) => {
             const isSelected = selected?.id === t.id
             return (
@@ -405,8 +432,12 @@ function SelectTenantStep({
                 key={t.id}
                 onClick={() => onSelect(isSelected ? null : t)}
                 style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '12px 16px', borderRadius: 8, cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
                   border: `1px solid ${isSelected ? '#316eea' : '#e4eaf2'}`,
                   background: isSelected ? '#edf3ff' : '#fff',
                   transition: 'all 0.15s',
@@ -417,12 +448,17 @@ function SelectTenantStep({
                   <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
                     {t.contactPhone}
                     {t.region ? ` · ${t.region}` : ''}
-                    <span style={{
-                      marginLeft: 8, fontSize: 11, padding: '1px 6px', borderRadius: 99,
-                      background: t.status === 'active' ? '#f6ffed' : '#fafafa',
-                      border: `1px solid ${t.status === 'active' ? '#b7eb8f' : '#d9d9d9'}`,
-                      color: t.status === 'active' ? '#52c41a' : '#999',
-                    }}>
+                    <span
+                      style={{
+                        marginLeft: 8,
+                        fontSize: 11,
+                        padding: '1px 6px',
+                        borderRadius: 99,
+                        background: t.status === 'active' ? '#f6ffed' : '#fafafa',
+                        border: `1px solid ${t.status === 'active' ? '#b7eb8f' : '#d9d9d9'}`,
+                        color: t.status === 'active' ? '#52c41a' : '#999',
+                      }}
+                    >
                       {t.status === 'active' ? '订阅中' : t.status === 'trial' ? '试用' : t.status}
                     </span>
                   </div>
@@ -440,12 +476,7 @@ function SelectTenantStep({
       )}
 
       <div style={{ display: 'flex', gap: 12 }}>
-        <Button
-          type="primary"
-          disabled={!selected}
-          icon={<RightOutlined />}
-          onClick={onNext}
-        >
+        <Button type="primary" disabled={!selected} icon={<RightOutlined />} onClick={onNext}>
           下一步{selected ? `（已选：${selected.name}）` : ''}
         </Button>
         <Button onClick={onSkip} style={{ color: '#999' }}>

@@ -7,23 +7,15 @@
  */
 
 import { history } from '@umijs/max'
-import {
-  ModalForm,
-  ProFormText,
-  ProFormTextArea,
-  ProTable,
-} from '@ant-design/pro-components'
+import { ModalForm, ProFormText, ProFormTextArea, ProTable } from '@ant-design/pro-components'
 import type { ActionType, ProColumns } from '@ant-design/pro-components'
 import { Button, message, Typography } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { useRef } from 'react'
-import type {
-  CreateCustomerRequest,
-  CustomerRow,
-  UpdateCustomerRequest,
-} from '@dmc/contracts'
+import type { CreateCustomerRequest, CustomerRow, UpdateCustomerRequest } from '@dmc/contracts'
 import { createCustomer, listCustomers, updateCustomer } from '@/services/admin'
 import { getErrorMessage } from '@/lib/errorMsg'
+import { WorkspaceTableTitle } from '@/components/WorkspacePage'
 
 function CustomerFormModal({
   editing,
@@ -84,17 +76,9 @@ function CustomerFormModal({
         placeholder="俄语 / 英文原名，报关对账以它为准"
         rules={[{ required: true, message: '请填写客户名称' }]}
       />
-      <ProFormText
-        name="shortName"
-        label="内部简称"
-        placeholder="列表和下拉里显示，可不填"
-      />
+      <ProFormText name="shortName" label="内部简称" placeholder="列表和下拉里显示，可不填" />
       <ProFormText name="contact" label="联系人" />
-      <ProFormText
-        name="contactInfo"
-        label="联系方式"
-        placeholder="邮箱 / 电话 / Telegram"
-      />
+      <ProFormText name="contactInfo" label="联系方式" placeholder="邮箱 / 电话 / Telegram" />
       <ProFormTextArea name="note" label="备注" fieldProps={{ rows: 3 }} />
     </ModalForm>
   )
@@ -109,9 +93,7 @@ export default function CustomersPage() {
       title: '客户名称',
       dataIndex: 'name',
       ellipsis: true,
-      render: (_, r) => (
-        <a onClick={() => history.push(`/customers/${r.id}`)}>{r.name}</a>
-      ),
+      render: (_, r) => <a onClick={() => history.push(`/customers/${r.id}`)}>{r.name}</a>,
     },
     { title: '简称', dataIndex: 'shortName', search: false, width: 120 },
     { title: '联系人', dataIndex: 'contact', search: false, width: 110 },
@@ -157,29 +139,35 @@ export default function CustomersPage() {
   ]
 
   return (
-    <ProTable<CustomerRow>
-      headerTitle="俄罗斯客户"
-      actionRef={actionRef}
-      columns={columns}
-      rowKey="id"
-      // 跟工厂管理等页一致:定 min-width,窄屏横向滚动、宽屏由无宽度的「客户名称」列撑满
-      scroll={{ x: 1000 }}
-      search={{ labelWidth: 'auto' }}
-      toolBarRender={() => [<CustomerFormModal key="create" onSuccess={reload} />]}
-      request={async (params) => {
-        const res = await listCustomers({
-          page: params.current ?? 1,
-          pageSize: params.pageSize ?? 20,
-          search: params.name || undefined,
-        })
-        return { data: res.items, total: res.total, success: true }
-      }}
-      tableExtraRender={() => (
-        <Typography.Paragraph type="secondary" style={{ margin: '0 0 8px' }}>
-          客户 = 给 DMC 码表的俄罗斯买家 / 进口商，跟「工厂管理」里的中国工厂不是一回事。
-          码表上传时选定客户后，系统会自动跟该客户历史码表查重。
-        </Typography.Paragraph>
-      )}
-    />
+    <div className="dmc-page-stack">
+      <ProTable<CustomerRow>
+        headerTitle={
+          <WorkspaceTableTitle
+            title="客户列表"
+            description="客户是俄罗斯买家或进口商，不是 SaaS 付费工厂"
+          />
+        }
+        actionRef={actionRef}
+        columns={columns}
+        rowKey="id"
+        // 跟工厂管理等页一致:定 min-width,窄屏横向滚动、宽屏由无宽度的「客户名称」列撑满
+        scroll={{ x: 1000 }}
+        search={{ labelWidth: 'auto' }}
+        toolBarRender={() => [<CustomerFormModal key="create" onSuccess={reload} />]}
+        request={async (params) => {
+          const res = await listCustomers({
+            page: params.current ?? 1,
+            pageSize: params.pageSize ?? 20,
+            search: params.name || undefined,
+          })
+          return { data: res.items, total: res.total, success: true }
+        }}
+        tableExtraRender={() => (
+          <Typography.Paragraph className="dmc-inline-note">
+            上传码表时选定客户后，系统会自动与该客户历史全部码表查重，避免同一批 DMC 重复入库。
+          </Typography.Paragraph>
+        )}
+      />
+    </div>
   )
 }

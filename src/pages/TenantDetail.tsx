@@ -14,16 +14,7 @@ import { useEffect, useState } from 'react'
 import { history, useParams } from '@umijs/max'
 import { ProDescriptions, ProTable } from '@ant-design/pro-components'
 import type { ProColumns } from '@ant-design/pro-components'
-import {
-  Button,
-  Card,
-  message,
-  Popconfirm,
-  Skeleton,
-  Space,
-  Tag,
-  Typography,
-} from 'antd'
+import { Button, Card, message, Popconfirm, Skeleton, Space, Tag, Typography } from 'antd'
 import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons'
 import type {
   AdminOrderRow,
@@ -35,9 +26,15 @@ import type {
   TenantId,
   TenantStatus,
 } from '@dmc/contracts'
-import { getTenantDetail, listOrders, listSubscriptions, updateTenantStatus } from '@/services/admin'
+import {
+  getTenantDetail,
+  listOrders,
+  listSubscriptions,
+  updateTenantStatus,
+} from '@/services/admin'
 import { getErrorMessage } from '@/lib/errorMsg'
 import RenewTenantModalButton from '@/components/RenewTenantModalButton'
+import { WorkspaceTableTitle } from '@/components/WorkspacePage'
 
 const STATUS_META: Record<TenantStatus, { text: string; color: string }> = {
   trial: { text: '试用中', color: 'blue' },
@@ -104,100 +101,102 @@ export default function TenantDetailPage() {
   const m = STATUS_META[detail.status]
 
   return (
-    <Card
-      title={
-        <Space size="middle">
-          <Button
-            type="text"
-            icon={<ArrowLeftOutlined />}
-            onClick={() => history.back()}
-          >
-            返回
-          </Button>
-          <span style={{ fontSize: 16 }}>{detail.name}</span>
-          <Tag color={m.color}>{m.text}</Tag>
-        </Space>
-      }
-      extra={
-        <Space>
-          <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
-            刷新
-          </Button>
-          <RenewTenantModalButton
-            tenantId={detail.id}
-            tenantName={detail.name}
-            currentExpiresAt={detail.expiresAt}
-            triggerProps={{ disabled: detail.status === 'disabled' }}
-            onSuccess={(updated) => setDetail(updated)}
-          />
-          <StatusActions
-            status={detail.status}
-            updating={updating}
-            onChange={handleStatusChange}
-          />
-        </Space>
-      }
-    >
-      <ProDescriptions<AdminTenantDetail>
-        dataSource={detail}
-        column={2}
-        columns={[
-          { title: 'ID', dataIndex: 'id', copyable: true, span: 2 },
-          { title: '工厂名称', dataIndex: 'name' },
-          { title: '联系人', dataIndex: 'contactName' },
-          { title: '手机号', dataIndex: 'contactPhone', copyable: true },
-          {
-            title: '地区',
-            dataIndex: 'region',
-            render: (v) => (v ? (v as string) : '—'),
-          },
-          {
-            title: '出口品类',
-            dataIndex: 'exportCategory',
-            render: (v) => (v ? (v as string) : '—'),
-          },
-          {
-            title: '推荐码(自己的)',
-            dataIndex: 'referralCode',
-            copyable: true,
-          },
-          {
-            title: '注册渠道',
-            dataIndex: 'invitedBy',
-            render: (_, row) => INVITED_BY_TEXT[row.invitedBy],
-          },
-          {
-            title: '到期时间',
-            dataIndex: 'expiresAt',
-            valueType: 'dateTime',
-          },
-          {
-            title: '首次订阅',
-            dataIndex: 'firstSubscribedAt',
-            valueType: 'dateTime',
-            render: (v) => (v ? (v as string) : '— 未订阅(试用中)'),
-          },
-          { title: '创建时间', dataIndex: 'createdAt', valueType: 'dateTime' },
-          { title: '更新时间', dataIndex: 'updatedAt', valueType: 'dateTime' },
-        ]}
-      />
+    <div className="dmc-page-stack">
+      <Card
+        className="dmc-detail-card"
+        title={
+          <div className="dmc-detail-card-title">
+            <Button
+              type="text"
+              className="dmc-card-back"
+              icon={<ArrowLeftOutlined />}
+              aria-label="返回工厂列表"
+              onClick={() => history.back()}
+            />
+            <WorkspaceTableTitle
+              title={detail.name}
+              description={`${detail.contactName} · ${detail.contactPhone}${detail.region ? ` · ${detail.region}` : ''}`}
+              badge={<Tag color={m.color}>{m.text}</Tag>}
+            />
+          </div>
+        }
+        extra={
+          <Space wrap>
+            <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
+              刷新
+            </Button>
+            <RenewTenantModalButton
+              tenantId={detail.id}
+              tenantName={detail.name}
+              currentExpiresAt={detail.expiresAt}
+              triggerProps={{ disabled: detail.status === 'disabled' }}
+              onSuccess={(updated) => setDetail(updated)}
+            />
+            <StatusActions
+              status={detail.status}
+              updating={updating}
+              onChange={handleStatusChange}
+            />
+          </Space>
+        }
+      >
+        <ProDescriptions<AdminTenantDetail>
+          dataSource={detail}
+          bordered
+          size="small"
+          column={{ xs: 1, sm: 1, md: 2, xl: 2 }}
+          columns={[
+            { title: 'ID', dataIndex: 'id', copyable: true, span: 2 },
+            { title: '工厂名称', dataIndex: 'name' },
+            { title: '联系人', dataIndex: 'contactName' },
+            { title: '手机号', dataIndex: 'contactPhone', copyable: true },
+            {
+              title: '地区',
+              dataIndex: 'region',
+              render: (v) => (v ? (v as string) : '—'),
+            },
+            {
+              title: '出口品类',
+              dataIndex: 'exportCategory',
+              render: (v) => (v ? (v as string) : '—'),
+            },
+            {
+              title: '推荐码(自己的)',
+              dataIndex: 'referralCode',
+              copyable: true,
+            },
+            {
+              title: '注册渠道',
+              dataIndex: 'invitedBy',
+              render: (_, row) => INVITED_BY_TEXT[row.invitedBy],
+            },
+            {
+              title: '到期时间',
+              dataIndex: 'expiresAt',
+              valueType: 'dateTime',
+            },
+            {
+              title: '首次订阅',
+              dataIndex: 'firstSubscribedAt',
+              valueType: 'dateTime',
+              render: (v) => (v ? (v as string) : '— 未订阅(试用中)'),
+            },
+            { title: '创建时间', dataIndex: 'createdAt', valueType: 'dateTime' },
+            { title: '更新时间', dataIndex: 'updatedAt', valueType: 'dateTime' },
+          ]}
+        />
+      </Card>
 
-      {/* ─── 订阅历史子表 ─── */}
-      <div style={{ marginTop: 24 }}>
-        <SubscriptionHistory tenantId={detail.id} />
-      </div>
-
-      {/* ─── 支付订单子表(订单号 / 微信流水号 / 金额 / 状态)─── */}
-      <div style={{ marginTop: 24 }}>
-        <OrderHistory tenantId={detail.id} />
-      </div>
-    </Card>
+      <SubscriptionHistory tenantId={detail.id} />
+      <OrderHistory tenantId={detail.id} />
+    </div>
   )
 }
 
 type TagMeta = { text: string; color: string }
 /** 查不到就 fallback(别因为 contracts 加了新枚举值就整页崩)*/
-const metaOf = (map: Record<string, TagMeta>, key: string): TagMeta => map[key] ?? { text: key, color: 'default' }
+const metaOf = (map: Record<string, TagMeta>, key: string): TagMeta =>
+  map[key] ?? { text: key, color: 'default' }
 
 const PLAN_META: Record<PlanId, TagMeta> = {
   monthly: { text: '月度', color: 'blue' },
@@ -333,7 +332,7 @@ const ORDER_COLUMNS: ProColumns<AdminOrderRow>[] = [
 function OrderHistory({ tenantId }: { tenantId: TenantId }) {
   return (
     <ProTable<AdminOrderRow>
-      headerTitle="支付订单"
+      headerTitle={<WorkspaceTableTitle title="支付订单" description="该工厂产生的全部订单流水" />}
       columns={ORDER_COLUMNS}
       rowKey="id"
       search={false}
@@ -357,7 +356,9 @@ function OrderHistory({ tenantId }: { tenantId: TenantId }) {
 function SubscriptionHistory({ tenantId }: { tenantId: TenantId }) {
   return (
     <ProTable<AdminSubscriptionRow>
-      headerTitle="订阅历史"
+      headerTitle={
+        <WorkspaceTableTitle title="订阅历史" description="套餐、来源与有效期变更记录" />
+      }
       columns={SUB_COLUMNS}
       rowKey="id"
       search={false}
@@ -388,11 +389,7 @@ function StatusActions({
 
   if (status === 'trial' || status === 'expired') {
     items.push(
-      <Popconfirm
-        key="active"
-        title="启用为正式订阅?"
-        onConfirm={() => onChange('active')}
-      >
+      <Popconfirm key="active" title="启用为正式订阅?" onConfirm={() => onChange('active')}>
         <Button type="primary" loading={updating}>
           启用订阅
         </Button>
@@ -402,11 +399,7 @@ function StatusActions({
 
   if (status === 'active') {
     items.push(
-      <Popconfirm
-        key="trial"
-        title="转为试用?"
-        onConfirm={() => onChange('trial')}
-      >
+      <Popconfirm key="trial" title="转为试用?" onConfirm={() => onChange('trial')}>
         <Button loading={updating}>转试用</Button>
       </Popconfirm>,
     )
@@ -430,11 +423,7 @@ function StatusActions({
 
   if (status === 'disabled') {
     items.push(
-      <Popconfirm
-        key="restore"
-        title="恢复为试用?"
-        onConfirm={() => onChange('trial')}
-      >
+      <Popconfirm key="restore" title="恢复为试用?" onConfirm={() => onChange('trial')}>
         <Button type="primary" loading={updating}>
           恢复
         </Button>

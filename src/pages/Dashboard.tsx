@@ -1,64 +1,92 @@
 /**
- * Admin Dashboard 数据看板 —— 首屏一次性渲染:
- *   - 顶部 9 项 KPI 卡片
- *   - 中段:近 12 月营收柱状图 + 新增工厂折线图
- *   - 下段:渠道分布饼图 + 转化漏斗 + 套餐分布饼图
- *   - 底部:即将到期工厂清单(7 天内 + 已过期 30 天内)
+ * Admin Dashboard 数据看板
  *
- * 数据来自一个 endpoint: GET /admin/dashboard/stats (services/admin.getDashboardStats)
+ * 信息层级按运营判断顺序组织：
+ *   1. 选择统计周期
+ *   2. 判断本期增长与当前订阅规模
+ *   3. 优先处理续期风险
+ *   4. 分析趋势、渠道和套餐结构
  */
 
-import { useEffect, useState, useMemo } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { history } from '@umijs/max'
 import dayjs, { type Dayjs } from 'dayjs'
 import {
-  Card, Row, Col, Spin, Empty, Tag, Tooltip, message,
-  Typography, DatePicker, Space, Button,
+  Button,
+  Card,
+  Col,
+  DatePicker,
+  Empty,
+  Progress,
+  Row,
+  Spin,
+  Tag,
+  Tooltip,
+  Typography,
+  message,
 } from 'antd'
 import {
-  ShopOutlined, RiseOutlined, ClockCircleOutlined, WarningOutlined,
-  DollarOutlined, GiftOutlined, UserAddOutlined, CheckCircleOutlined, FallOutlined,
   ArrowRightOutlined,
+  CalendarOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  DollarOutlined,
+  FallOutlined,
+  GiftOutlined,
+  LoadingOutlined,
+  RiseOutlined,
+  ShopOutlined,
+  UserAddOutlined,
+  WarningOutlined,
 } from '@ant-design/icons'
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
 } from 'recharts'
 import type { AdminDashboardStats } from '@dmc/contracts'
 import { getDashboardStats } from '@/services/admin'
 import { getErrorMessage } from '@/lib/errorMsg'
 import RenewTenantModalButton from '@/components/RenewTenantModalButton'
-import { KpiCard, COLORS } from '@/components/KpiCard'
-
-// 统一 chart Card 样式(更软的圆角 + soft border)
-const chartCardStyle: React.CSSProperties = {
-  borderRadius: 14,
-  border: '1px solid #e5e7eb',
-}
-const chartCardStyles = {
-  header: { borderBottom: '1px solid #f3f4f6', fontWeight: 600 },
-  body: { padding: 16 },
-}
+import { COLORS } from '@/components/KpiCard'
+import styles from './Dashboard.module.less'
 
 function fmtMoney(yuan: number) {
-  return '¥ ' + yuan.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return `¥${yuan.toLocaleString('zh-CN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
 }
 
 function fmtMonth(ym: string) {
-  // 'YYYY-MM' → 'M月'
-  const [, m] = ym.split('-')
-  return `${parseInt(m, 10)}月`
+  const [, month] = ym.split('-')
+  return `${parseInt(month, 10)}月`
 }
 
-/** 时间范围预设 —— 跟 backend getDashboardStats query 对接;
- *  默认 'this-month' 跟历史"本月"行为一致 */
-type RangePreset = 'today' | 'last-7d' | 'last-30d' | 'this-month' | 'last-month' | 'last-12m' | 'custom'
+type RangePreset =
+  | 'today'
+  | 'last-7d'
+  | 'last-30d'
+  | 'this-month'
+  | 'last-month'
+  | 'last-12m'
+  | 'custom'
 
 interface DateRange {
   from: Dayjs
   to: Dayjs
   preset: RangePreset
-  label: string  // 显示用文案,如"本月 5/1 - 5/26"
+  label: string
 }
 
 function computeRange(preset: Exclude<RangePreset, 'custom'>): DateRange {
@@ -67,17 +95,37 @@ function computeRange(preset: Exclude<RangePreset, 'custom'>): DateRange {
     case 'today':
       return { from: now.startOf('day'), to: now.endOf('day'), preset, label: '今天' }
     case 'last-7d':
-      return { from: now.subtract(6, 'day').startOf('day'), to: now.endOf('day'), preset, label: '近 7 天' }
+      return {
+        from: now.subtract(6, 'day').startOf('day'),
+        to: now.endOf('day'),
+        preset,
+        label: '近 7 天',
+      }
     case 'last-30d':
-      return { from: now.subtract(29, 'day').startOf('day'), to: now.endOf('day'), preset, label: '近 30 天' }
+      return {
+        from: now.subtract(29, 'day').startOf('day'),
+        to: now.endOf('day'),
+        preset,
+        label: '近 30 天',
+      }
     case 'this-month':
       return { from: now.startOf('month'), to: now.endOf('day'), preset, label: '本月' }
     case 'last-month': {
-      const lm = now.subtract(1, 'month')
-      return { from: lm.startOf('month'), to: lm.endOf('month'), preset, label: '上月' }
+      const lastMonth = now.subtract(1, 'month')
+      return {
+        from: lastMonth.startOf('month'),
+        to: lastMonth.endOf('month'),
+        preset,
+        label: '上月',
+      }
     }
     case 'last-12m':
-      return { from: now.subtract(11, 'month').startOf('month'), to: now.endOf('day'), preset, label: '近 12 月' }
+      return {
+        from: now.subtract(11, 'month').startOf('month'),
+        to: now.endOf('day'),
+        preset,
+        label: '近 12 月',
+      }
   }
 }
 
@@ -95,36 +143,54 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [range, setRange] = useState<DateRange>(() => computeRange('this-month'))
 
-  // 区间天数计算 —— 给"区间内"标签做附注
   const rangeDays = useMemo(() => Math.max(1, range.to.diff(range.from, 'day') + 1), [range])
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     getDashboardStats({ from: range.from.toISOString(), to: range.to.toISOString() })
-      .then((s) => { if (!cancelled) setStats(s) })
-      .catch((e) => { if (!cancelled) message.error(getErrorMessage(e, '加载数据看板失败')) })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
+      .then((nextStats) => {
+        if (!cancelled) setStats(nextStats)
+      })
+      .catch((error) => {
+        if (!cancelled) message.error(getErrorMessage(error, '加载数据看板失败'))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [range])
 
   if (loading && !stats) {
-    // antd 5: <Spin tip> 必须 nest/fullscreen 模式;独立用直接 warning。
-    // 这里"加载文字"放 Spin 外面更稳。
     return (
-      <div style={{ textAlign: 'center', padding: 80 }}>
+      <div className={styles.loadingState}>
         <Spin size="large" />
-        <div style={{ marginTop: 12, fontSize: 13, color: '#888' }}>加载数据看板...</div>
+        <strong>正在汇总经营数据</strong>
+        <span>加载工厂、订阅与营收信息…</span>
       </div>
     )
   }
+
   if (!stats) {
-    return <Empty description="暂无数据" />
+    return (
+      <div className={styles.emptyState}>
+        <Empty description="暂无数据" />
+      </div>
+    )
   }
 
-  const { kpi, revenueByMonth, newTenantsByMonth, channelDistribution, conversionFunnel, planDistribution, expiringList } = stats
+  const {
+    kpi,
+    revenueByMonth,
+    newTenantsByMonth,
+    channelDistribution,
+    conversionFunnel,
+    planDistribution,
+    expiringList,
+  } = stats
 
-  // ─── 渠道 / 套餐 饼图数据 ───
   const channelData = [
     { name: '公司邀请', value: channelDistribution.company, color: COLORS.primary },
     { name: '推荐注册', value: channelDistribution.referral, color: COLORS.success },
@@ -134,341 +200,595 @@ export default function DashboardPage() {
     { name: '年度订阅', value: planDistribution.yearly, color: COLORS.purple },
   ]
 
-  // ─── 转化漏斗百分比 ───
-  const subscribeRate = conversionFunnel.totalRegistered === 0 ? 0
-    : Math.round((conversionFunnel.everSubscribed / conversionFunnel.totalRegistered) * 100)
-  const activeRate = conversionFunnel.everSubscribed === 0 ? 0
-    : Math.round((conversionFunnel.activeSubscribed / conversionFunnel.everSubscribed) * 100)
-
-  // 区间 KPI 标签 —— "区间内新增 · {label}"形式,让用户清楚数据范围
-  const rangeNewLabel = `区间新增 · ${range.label}`
-  const rangeRevenueLabel = `区间营收 · ${range.label}`
+  const subscribeRate = conversionFunnel.totalRegistered
+    ? Math.round((conversionFunnel.everSubscribed / conversionFunnel.totalRegistered) * 100)
+    : 0
+  const activeRate = conversionFunnel.everSubscribed
+    ? Math.round((conversionFunnel.activeSubscribed / conversionFunnel.everSubscribed) * 100)
+    : 0
+  const activeCoverage = kpi.totalTenants
+    ? Math.round((kpi.activeSubscriptions / kpi.totalTenants) * 100)
+    : 0
+  const renewalRiskCount = kpi.expiringIn7Days + kpi.expiredCount
+  const visibleExpiringList = expiringList.slice(0, 6)
 
   return (
-    <div>
-      {/* ─── 顶部时间范围选择器 ─── */}
-      <Card style={{ marginBottom: 16, borderRadius: 14, border: '1px solid #e5e7eb' }} styles={{ body: { padding: 14 } }}>
-        <Space wrap size={[8, 8]} align="center">
-          <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, marginRight: 4 }}>时间范围</span>
-          {PRESET_OPTIONS.map((opt) => (
-            <Button
-              key={opt.key}
-              type={range.preset === opt.key ? 'primary' : 'default'}
-              size="small"
-              onClick={() => setRange(computeRange(opt.key))}
-            >
-              {opt.label}
-            </Button>
-          ))}
-          <DatePicker.RangePicker
-            size="small"
-            value={range.preset === 'custom' ? [range.from, range.to] : null}
-            onChange={(vals) => {
-              if (!vals || !vals[0] || !vals[1]) return
-              const from = vals[0].startOf('day')
-              const to = vals[1].endOf('day')
-              const days = to.diff(from, 'day') + 1
-              setRange({ from, to, preset: 'custom', label: `自定义 · ${days} 天` })
-            }}
-            placeholder={['开始日期', '结束日期']}
-          />
-          <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>
-            当前:{range.from.format('YYYY-MM-DD')} ~ {range.to.format('YYYY-MM-DD')} ({rangeDays} 天)
-          </span>
-        </Space>
-      </Card>
-
-      {/* ─── Tier 1: 9 KPI(现代 SaaS 风格,彩色 icon 块 + 渐变卡)─── */}
-      <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-        <Col xs={12} sm={8} md={6} lg={4}>
-          <KpiCard tone="slate" icon={<ShopOutlined />} label="累计工厂" value={kpi.totalTenants} />
-        </Col>
-        <Col xs={12} sm={8} md={6} lg={4}>
-          <KpiCard tone="success" icon={<CheckCircleOutlined />} label="活跃订阅" value={kpi.activeSubscriptions} />
-        </Col>
-        <Col xs={12} sm={8} md={6} lg={4}>
-          <KpiCard tone="primary" icon={<ClockCircleOutlined />} label="试用中" value={kpi.trialCount} />
-        </Col>
-        <Col xs={12} sm={8} md={6} lg={4}>
-          <KpiCard tone="warning" icon={<WarningOutlined />} label="即将到期 (7d)" value={kpi.expiringIn7Days} highlight={kpi.expiringIn7Days > 0} />
-        </Col>
-        <Col xs={12} sm={8} md={6} lg={4}>
-          <KpiCard tone="danger" icon={<FallOutlined />} label="已到期" value={kpi.expiredCount} highlight={kpi.expiredCount > 0} />
-        </Col>
-        <Col xs={12} sm={8} md={6} lg={4}>
-          <KpiCard tone="purple" icon={<UserAddOutlined />} label={rangeNewLabel} value={kpi.newTenantsInRange} />
-        </Col>
-        <Col xs={12} sm={8} md={6} lg={4}>
-          <KpiCard tone="gold" icon={<DollarOutlined />} label={rangeRevenueLabel} value={kpi.revenueInRange} fmt="money" />
-        </Col>
-        <Col xs={12} sm={8} md={6} lg={4}>
-          <KpiCard tone="success" icon={<RiseOutlined />} label="累计营收" value={kpi.revenueTotal} fmt="money" />
-        </Col>
-        <Col xs={12} sm={8} md={6} lg={4}>
-          <KpiCard tone="pink" icon={<GiftOutlined />} label="累计返佣天数" value={kpi.totalRewardDays} suffix="天" />
-        </Col>
-      </Row>
-
-      {/* ─── Tier 2: 趋势图 ─── */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} lg={12}>
-          <Card title={`营收趋势(月,${range.label})`} size="small" style={chartCardStyle} styles={chartCardStyles}>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={revenueByMonth} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="grad-revenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={COLORS.success} stopOpacity={0.9} />
-                    <stop offset="100%" stopColor={COLORS.success} stopOpacity={0.4} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="month" tickFormatter={fmtMonth} fontSize={11} stroke="#94a3b8" axisLine={false} tickLine={false} />
-                <YAxis fontSize={11} stroke="#94a3b8" axisLine={false} tickLine={false} />
-                <RechartsTooltip
-                  formatter={(value) => fmtMoney(Number(value))}
-                  labelFormatter={(label) => `月份: ${label}`}
-                  contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
-                  cursor={{ fill: '#f8fafc' }}
-                />
-                <Bar dataKey="value" fill="url(#grad-revenue)" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
-        <Col xs={24} lg={12}>
-          <Card title={`新增工厂趋势(月,${range.label})`} size="small" style={chartCardStyle} styles={chartCardStyles}>
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={newTenantsByMonth} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="grad-tenants" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={COLORS.primary} stopOpacity={0.3} />
-                    <stop offset="100%" stopColor={COLORS.primary} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="month" tickFormatter={fmtMonth} fontSize={11} stroke="#94a3b8" axisLine={false} tickLine={false} />
-                <YAxis fontSize={11} stroke="#94a3b8" axisLine={false} tickLine={false} />
-                <RechartsTooltip
-                  formatter={(value) => `${value} 家`}
-                  labelFormatter={(label) => `月份: ${label}`}
-                  contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
-                  cursor={{ stroke: '#e5e7eb' }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke={COLORS.primary}
-                  strokeWidth={2.5}
-                  dot={{ r: 3, fill: '#fff', stroke: COLORS.primary, strokeWidth: 2 }}
-                  activeDot={{ r: 6, fill: COLORS.primary, stroke: '#fff', strokeWidth: 2 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
-      </Row>
-
-      {/* ─── Tier 3: 渠道分布 / 转化漏斗 / 套餐分布 ─── */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} md={8}>
-          <Card title="注册渠道分布" size="small" style={chartCardStyle} styles={chartCardStyles}>
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie
-                  data={channelData}
-                  cx="50%" cy="50%"
-                  outerRadius={70}
-                  dataKey="value"
-                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                  labelLine={false}
-                >
-                  {channelData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
-                </Pie>
-                <RechartsTooltip formatter={(value) => `${value} 家`} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
-        <Col xs={24} md={8}>
-          <Card title="转化漏斗" size="small" style={chartCardStyle} styles={chartCardStyles}>
-            <div style={{ padding: '8px 0' }}>
-              <FunnelStep
-                label="总注册工厂"
-                value={conversionFunnel.totalRegistered}
-                color={COLORS.primary}
-                width="100%"
-              />
-              <FunnelStep
-                label="完成首次订阅"
-                value={conversionFunnel.everSubscribed}
-                color={COLORS.success}
-                width={`${Math.max(subscribeRate, 10)}%`}
-                rate={`${subscribeRate}%`}
-              />
-              <FunnelStep
-                label="当前活跃订阅"
-                value={conversionFunnel.activeSubscribed}
-                color={COLORS.purple}
-                width={`${Math.max(activeRate * subscribeRate / 100, 8)}%`}
-                rate={`${activeRate}% × ${subscribeRate}%`}
-              />
+    <main className={styles.dashboard}>
+      <section className={styles.controlDeck}>
+        <div className={styles.rangeControl}>
+          <div className={styles.rangeLabel}>
+            <CalendarOutlined />
+            <span>统计周期</span>
+          </div>
+          <div className={styles.presetGroup} aria-label="统计周期预设">
+            {PRESET_OPTIONS.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                className={range.preset === option.key ? styles.presetActive : undefined}
+                aria-pressed={range.preset === option.key}
+                onClick={() => setRange(computeRange(option.key))}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <div className={styles.datePickerWrap}>
+            <DatePicker.RangePicker
+              className={styles.datePicker}
+              value={[range.from, range.to]}
+              allowClear={false}
+              format="YYYY-MM-DD"
+              onChange={(values) => {
+                if (!values || !values[0] || !values[1]) return
+                const from = values[0].startOf('day')
+                const to = values[1].endOf('day')
+                const days = to.diff(from, 'day') + 1
+                setRange({ from, to, preset: 'custom', label: `自定义 · ${days} 天` })
+              }}
+              placeholder={['开始日期', '结束日期']}
+            />
+          </div>
+          <div className={styles.rangeSummary}>
+            <span>{range.label}</span>
+            <strong>{rangeDays} 天</strong>
+          </div>
+          <div
+            className={`${styles.riskSignal} ${
+              renewalRiskCount > 0 ? styles.riskSignalWarning : styles.riskSignalHealthy
+            }`}
+          >
+            <div className={styles.riskIcon}>
+              {renewalRiskCount > 0 ? <WarningOutlined /> : <CheckCircleOutlined />}
             </div>
-          </Card>
-        </Col>
-        <Col xs={24} md={8}>
-          <Card title="套餐分布(累计)" size="small" style={chartCardStyle} styles={chartCardStyles}>
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie
-                  data={planData}
-                  cx="50%" cy="50%"
-                  outerRadius={70}
-                  dataKey="value"
-                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                  labelLine={false}
-                >
-                  {planData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
-                </Pie>
-                <RechartsTooltip formatter={(value) => `${value} 次`} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
-      </Row>
-
-      {/* ─── Tier 4: 即将到期 / 已过期清单 ─── */}
-      <Card
-        title={
-          <span>
-            <WarningOutlined style={{ color: COLORS.warning, marginRight: 6 }} />
-            即将到期 + 已过期 (近 30 天)
+            <div>
+              <span>续期关注</span>
+              <strong>
+                {renewalRiskCount > 0 ? `${renewalRiskCount} 家待处理` : '当前状态健康'}
+              </strong>
+            </div>
+          </div>
+          <span className={styles.loadingSlot} aria-live="polite">
+            {loading && (
+              <Tooltip title="正在更新当前周期数据">
+                <LoadingOutlined className={styles.loadingIcon} spin />
+              </Tooltip>
+            )}
           </span>
-        }
-        size="small"
-        style={chartCardStyle}
-        styles={chartCardStyles}
-        extra={
-          <Tooltip title="点工厂跳到详情页处理">
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>共 {expiringList.length} 家</Typography.Text>
-          </Tooltip>
-        }
-      >
-        {expiringList.length === 0 ? (
-          <Empty description="未来 7 天 + 已过期 30 天内 没有工厂" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {expiringList.map((t) => {
-              const expired = t.daysLeft <= 0
-              const urgent = t.daysLeft <= 3
-              return (
-                <div
-                  key={t.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    borderRadius: 4,
-                    transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#f5f5f5' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = '' }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <Typography.Link
-                      onClick={() => history.push(`/tenants/${t.id}`)}
-                      style={{ fontWeight: 500 }}
-                    >
-                      {t.name}
-                    </Typography.Link>
-                    <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
-                      {t.contactName} · {t.contactPhone}
-                    </Typography.Text>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <Tag color={expired ? 'red' : urgent ? 'orange' : 'blue'}>
-                      {expired
-                        ? `已过期 ${Math.abs(t.daysLeft)} 天`
-                        : t.daysLeft === 0 ? '今日到期' : `还剩 ${t.daysLeft} 天`}
-                    </Tag>
-                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                      {new Date(t.expiresAt).toLocaleDateString('zh-CN')}
-                    </Typography.Text>
-                    <RenewTenantModalButton
-                      tenantId={t.id}
-                      tenantName={t.name}
-                      currentExpiresAt={t.expiresAt}
-                      triggerText="续期"
-                      triggerProps={{ size: 'small' }}
-                      onSuccess={() => {
-                        // 续期成功后从清单移除(本地优化,避免整页 refetch)
-                        setStats((prev) => prev && ({
-                          ...prev,
-                          expiringList: prev.expiringList.filter((x) => x.id !== t.id),
-                        }))
-                      }}
-                    />
-                    <ArrowRightOutlined
-                      style={{ color: '#bfbfbf', cursor: 'pointer' }}
-                      onClick={() => history.push(`/tenants/${t.id}`)}
-                    />
+        </div>
+      </section>
+
+      <section className={styles.section}>
+        <SectionHeading
+          eyebrow="CURRENT PERIOD"
+          title="本期经营"
+          description={`${range.from.format('YYYY.MM.DD')} — ${range.to.format(
+            'YYYY.MM.DD',
+          )} 的核心结果`}
+        />
+        <div className={styles.primaryMetrics}>
+          <PrimaryMetric
+            tone="blue"
+            icon={<DollarOutlined />}
+            label="本期营收"
+            value={fmtMoney(kpi.revenueInRange)}
+            helper="统计周期内已入账金额"
+          />
+          <PrimaryMetric
+            tone="cyan"
+            icon={<UserAddOutlined />}
+            label="新增工厂"
+            value={kpi.newTenantsInRange.toLocaleString('zh-CN')}
+            suffix="家"
+            helper="统计周期内新注册工厂"
+          />
+          <PrimaryMetric
+            tone="green"
+            icon={<CheckCircleOutlined />}
+            label="活跃订阅"
+            value={kpi.activeSubscriptions.toLocaleString('zh-CN')}
+            suffix="家"
+            helper={`占全部工厂 ${activeCoverage}%`}
+          />
+        </div>
+        <div className={styles.lifetimeStrip}>
+          <ContextMetric
+            icon={<ShopOutlined />}
+            label="累计工厂"
+            value={`${kpi.totalTenants.toLocaleString('zh-CN')} 家`}
+          />
+          <ContextMetric
+            icon={<RiseOutlined />}
+            label="累计营收"
+            value={fmtMoney(kpi.revenueTotal)}
+          />
+          <ContextMetric
+            icon={<GiftOutlined />}
+            label="累计返佣"
+            value={`${kpi.totalRewardDays.toLocaleString('zh-CN')} 天`}
+          />
+        </div>
+      </section>
+
+      <section className={styles.section}>
+        <SectionHeading
+          eyebrow="ACTION QUEUE"
+          title="订阅健康与待办"
+          description="先处理即将到期和已过期工厂，再关注试用转化"
+        />
+        <Row gutter={[16, 16]} align="stretch">
+          <Col xs={24} xl={9}>
+            <Card className={`${styles.panelCard} ${styles.healthCard}`}>
+              <PanelTitle title="订阅健康" description="当前全量工厂状态" />
+              <div className={styles.coverageBlock}>
+                <div>
+                  <span>活跃订阅覆盖</span>
+                  <strong>{activeCoverage}%</strong>
+                </div>
+                <Progress
+                  percent={activeCoverage}
+                  showInfo={false}
+                  strokeColor={{ '0%': '#316eea', '100%': '#5fd6f2' }}
+                  trailColor="#eaf0f7"
+                  size={{ height: 8 }}
+                />
+              </div>
+              <div className={styles.healthGrid}>
+                <HealthMetric
+                  tone="neutral"
+                  icon={<ShopOutlined />}
+                  label="全部工厂"
+                  value={kpi.totalTenants}
+                />
+                <HealthMetric
+                  tone="info"
+                  icon={<ClockCircleOutlined />}
+                  label="试用中"
+                  value={kpi.trialCount}
+                />
+                <HealthMetric
+                  tone="warning"
+                  icon={<WarningOutlined />}
+                  label="7 天内到期"
+                  value={kpi.expiringIn7Days}
+                />
+                <HealthMetric
+                  tone="danger"
+                  icon={<FallOutlined />}
+                  label="已到期"
+                  value={kpi.expiredCount}
+                />
+              </div>
+            </Card>
+          </Col>
+          <Col xs={24} xl={15}>
+            <Card
+              className={`${styles.panelCard} ${styles.actionCard}`}
+              title={<PanelTitle title="续期待办" description="未来 7 天到期及近 30 天已过期" />}
+              extra={<span className={styles.queueCount}>{expiringList.length} 家</span>}
+            >
+              {visibleExpiringList.length === 0 ? (
+                <div className={styles.queueEmpty}>
+                  <CheckCircleOutlined />
+                  <div>
+                    <strong>当前没有续期待办</strong>
+                    <span>未来 7 天内没有即将到期的工厂</span>
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        )}
-      </Card>
+              ) : (
+                <div className={styles.renewalList}>
+                  {visibleExpiringList.map((tenant) => {
+                    const expired = tenant.daysLeft < 0
+                    const urgent = tenant.daysLeft <= 3
+                    return (
+                      <div className={styles.renewalItem} key={tenant.id}>
+                        <button
+                          type="button"
+                          className={styles.tenantIdentity}
+                          onClick={() => history.push(`/tenants/${tenant.id}`)}
+                        >
+                          <span className={styles.tenantMark}>{tenant.name.slice(0, 1)}</span>
+                          <span>
+                            <strong>{tenant.name}</strong>
+                            <small>
+                              {tenant.contactName} · {tenant.contactPhone}
+                            </small>
+                          </span>
+                        </button>
+                        <div className={styles.renewalMeta}>
+                          <Tag color={expired ? 'red' : urgent ? 'orange' : 'blue'}>
+                            {expired
+                              ? `已过期 ${Math.abs(tenant.daysLeft)} 天`
+                              : tenant.daysLeft === 0
+                                ? '今日到期'
+                                : `还剩 ${tenant.daysLeft} 天`}
+                          </Tag>
+                          <time>{dayjs(tenant.expiresAt).format('YYYY.MM.DD')}</time>
+                          <RenewTenantModalButton
+                            tenantId={tenant.id}
+                            tenantName={tenant.name}
+                            currentExpiresAt={tenant.expiresAt}
+                            triggerText="续期"
+                            triggerProps={{ size: 'small' }}
+                            onSuccess={() => {
+                              setStats(
+                                (previous) =>
+                                  previous && {
+                                    ...previous,
+                                    expiringList: previous.expiringList.filter(
+                                      (item) => item.id !== tenant.id,
+                                    ),
+                                  },
+                              )
+                            }}
+                          />
+                          <ArrowRightOutlined
+                            className={styles.rowArrow}
+                            onClick={() => history.push(`/tenants/${tenant.id}`)}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              {expiringList.length > visibleExpiringList.length && (
+                <Button
+                  type="link"
+                  className={styles.viewAllButton}
+                  onClick={() => history.push('/tenants')}
+                >
+                  查看全部待处理工厂 <ArrowRightOutlined />
+                </Button>
+              )}
+            </Card>
+          </Col>
+        </Row>
+      </section>
+
+      <section className={styles.section}>
+        <SectionHeading
+          eyebrow="PERFORMANCE"
+          title="增长趋势"
+          description="对照营收与新增工厂，判断增长质量"
+        />
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={12}>
+            <Card
+              className={styles.panelCard}
+              title={<PanelTitle title="营收趋势" description="按月汇总入账金额" />}
+              extra={<span className={styles.panelPeriod}>{range.label}</span>}
+            >
+              <ResponsiveContainer width="100%" height={278}>
+                <BarChart data={revenueByMonth} margin={{ top: 18, right: 12, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="dashboard-revenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#316eea" stopOpacity={0.96} />
+                      <stop offset="100%" stopColor="#5f98f5" stopOpacity={0.55} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 4" stroke="#eaf0f6" vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    tickFormatter={fmtMonth}
+                    fontSize={11}
+                    stroke="#91a0b5"
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis fontSize={11} stroke="#91a0b5" axisLine={false} tickLine={false} />
+                  <RechartsTooltip
+                    formatter={(value) => fmtMoney(Number(value))}
+                    labelFormatter={(label) => `${label}`}
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                    cursor={{ fill: '#f3f7fd' }}
+                  />
+                  <Bar dataKey="value" fill="url(#dashboard-revenue)" radius={[6, 6, 2, 2]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </Card>
+          </Col>
+          <Col xs={24} lg={12}>
+            <Card
+              className={styles.panelCard}
+              title={<PanelTitle title="新增工厂趋势" description="按月统计新注册工厂" />}
+              extra={<span className={styles.panelPeriod}>{range.label}</span>}
+            >
+              <ResponsiveContainer width="100%" height={278}>
+                <LineChart
+                  data={newTenantsByMonth}
+                  margin={{ top: 18, right: 12, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 4" stroke="#eaf0f6" vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    tickFormatter={fmtMonth}
+                    fontSize={11}
+                    stroke="#91a0b5"
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    fontSize={11}
+                    stroke="#91a0b5"
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <RechartsTooltip
+                    formatter={(value) => `${value} 家`}
+                    labelFormatter={(label) => `${label}`}
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                    cursor={{ stroke: '#d7e3f3' }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke={COLORS.success}
+                    strokeWidth={3}
+                    dot={{ r: 3, fill: '#fff', stroke: COLORS.success, strokeWidth: 2 }}
+                    activeDot={{ r: 6, fill: COLORS.success, stroke: '#fff', strokeWidth: 2 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </Card>
+          </Col>
+        </Row>
+      </section>
+
+      <section className={styles.section}>
+        <SectionHeading
+          eyebrow="BUSINESS MIX"
+          title="业务结构"
+          description="从获客、转化与套餐偏好理解增长来源"
+        />
+        <Row gutter={[16, 16]}>
+          <Col xs={24} md={8}>
+            <DistributionCard
+              title="注册渠道"
+              description="工厂从哪里进入系统"
+              data={channelData}
+              unit="家"
+            />
+          </Col>
+          <Col xs={24} md={8}>
+            <Card className={`${styles.panelCard} ${styles.mixCard}`}>
+              <PanelTitle title="订阅转化" description="注册到活跃订阅的转化链路" />
+              <div className={styles.funnelSummary}>
+                <strong>{subscribeRate}%</strong>
+                <span>注册工厂完成过首次订阅</span>
+              </div>
+              <div className={styles.funnelList}>
+                <FunnelStep
+                  label="注册工厂"
+                  value={conversionFunnel.totalRegistered}
+                  rate="基准"
+                  percent={100}
+                  color={COLORS.primary}
+                />
+                <FunnelStep
+                  label="完成首次订阅"
+                  value={conversionFunnel.everSubscribed}
+                  rate={`${subscribeRate}%`}
+                  percent={subscribeRate}
+                  color={COLORS.success}
+                />
+                <FunnelStep
+                  label="当前活跃订阅"
+                  value={conversionFunnel.activeSubscribed}
+                  rate={`${activeRate}% 留存`}
+                  percent={
+                    conversionFunnel.totalRegistered
+                      ? Math.round(
+                          (conversionFunnel.activeSubscribed / conversionFunnel.totalRegistered) *
+                            100,
+                        )
+                      : 0
+                  }
+                  color={COLORS.purple}
+                />
+              </div>
+            </Card>
+          </Col>
+          <Col xs={24} md={8}>
+            <DistributionCard
+              title="套餐选择"
+              description="累计订阅中的套餐偏好"
+              data={planData}
+              unit="次"
+            />
+          </Col>
+        </Row>
+      </section>
+    </main>
+  )
+}
+
+const CHART_TOOLTIP_STYLE = {
+  border: '1px solid #dfe7f1',
+  borderRadius: 10,
+  boxShadow: '0 12px 28px rgba(23, 43, 77, 0.12)',
+}
+
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string
+  title: string
+  description: string
+}) {
+  return (
+    <div className={styles.sectionHeading}>
+      <div>
+        <span>{eyebrow}</span>
+        <h2>{title}</h2>
+      </div>
+      <p>{description}</p>
     </div>
   )
 }
 
-// KpiCard / KPI_TONE / ColorKey 已抽到 @/components/KpiCard
+function PanelTitle({ title, description }: { title: string; description: string }) {
+  return (
+    <div className={styles.panelTitle}>
+      <strong>{title}</strong>
+      <span>{description}</span>
+    </div>
+  )
+}
 
-// ─── 转化漏斗单条 step ───
+function PrimaryMetric({
+  tone,
+  icon,
+  label,
+  value,
+  suffix,
+  helper,
+}: {
+  tone: 'blue' | 'cyan' | 'green'
+  icon: ReactNode
+  label: string
+  value: string
+  suffix?: string
+  helper: string
+}) {
+  return (
+    <article className={`${styles.primaryMetric} ${styles[`primaryMetric${tone}`]}`}>
+      <div className={styles.metricIcon}>{icon}</div>
+      <div className={styles.metricBody}>
+        <span className={styles.metricLabel}>{label}</span>
+        <div className={styles.metricValue}>
+          <strong>{value}</strong>
+          {suffix && <span>{suffix}</span>}
+        </div>
+        <small>{helper}</small>
+      </div>
+    </article>
+  )
+}
+
+function ContextMetric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className={styles.contextMetric}>
+      <span className={styles.contextIcon}>{icon}</span>
+      <span>
+        <small>{label}</small>
+        <strong>{value}</strong>
+      </span>
+    </div>
+  )
+}
+
+function HealthMetric({
+  tone,
+  icon,
+  label,
+  value,
+}: {
+  tone: 'neutral' | 'info' | 'warning' | 'danger'
+  icon: ReactNode
+  label: string
+  value: number
+}) {
+  return (
+    <div className={`${styles.healthMetric} ${styles[`healthMetric${tone}`]}`}>
+      <span>{icon}</span>
+      <small>{label}</small>
+      <strong>{value.toLocaleString('zh-CN')}</strong>
+    </div>
+  )
+}
+
+function DistributionCard({
+  title,
+  description,
+  data,
+  unit,
+}: {
+  title: string
+  description: string
+  data: { name: string; value: number; color: string }[]
+  unit: string
+}) {
+  const total = data.reduce((sum, item) => sum + item.value, 0)
+  return (
+    <Card className={`${styles.panelCard} ${styles.mixCard}`}>
+      <PanelTitle title={title} description={description} />
+      <div className={styles.donutWrap}>
+        <ResponsiveContainer width="100%" height={176}>
+          <PieChart>
+            <Pie
+              data={data}
+              cx="50%"
+              cy="50%"
+              innerRadius={48}
+              outerRadius={72}
+              paddingAngle={3}
+              dataKey="value"
+              stroke="none"
+            >
+              {data.map((item) => (
+                <Cell key={item.name} fill={item.color} />
+              ))}
+            </Pie>
+            <RechartsTooltip formatter={(value) => `${value} ${unit}`} />
+            <Legend iconType="circle" iconSize={7} />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className={styles.donutTotal}>
+          <strong>{total.toLocaleString('zh-CN')}</strong>
+          <span>{unit}</span>
+        </div>
+      </div>
+    </Card>
+  )
+}
 
 function FunnelStep({
-  label, value, color, width, rate,
+  label,
+  value,
+  rate,
+  percent,
+  color,
 }: {
   label: string
   value: number
+  rate: string
+  percent: number
   color: string
-  width: string
-  rate?: string
 }) {
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 4,
-          fontSize: 12,
-        }}
-      >
-        <span style={{ color: '#666' }}>{label}</span>
-        <span style={{ color }}>
-          <strong>{value}</strong>
-          {rate && <span style={{ color: '#999', marginLeft: 6, fontSize: 11 }}>{rate}</span>}
-        </span>
+    <div className={styles.funnelStep}>
+      <div>
+        <span>{label}</span>
+        <strong>{value.toLocaleString('zh-CN')}</strong>
+        <small>{rate}</small>
       </div>
-      <div
-        style={{
-          width,
-          height: 24,
-          background: color,
-          opacity: 0.85,
-          borderRadius: 4,
-          transition: 'width 0.4s',
-        }}
-      />
+      <div className={styles.funnelTrack}>
+        <span style={{ width: `${Math.max(percent, 3)}%`, background: color }} />
+      </div>
     </div>
   )
 }
